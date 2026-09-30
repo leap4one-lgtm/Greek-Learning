@@ -92,6 +92,18 @@
   };
   function P() { return S.profiles[S.who]; }
 
+  /* ---------- appearance ---------- */
+  function applyTheme() {
+    var t = S.theme === 'light' || S.theme === 'dark' ? S.theme : null;
+    if (t) document.documentElement.setAttribute('data-theme', t);
+    else document.documentElement.removeAttribute('data-theme');
+    var dark = t ? t === 'dark' : !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', dark ? '#170D1F' : '#F6F2F8');
+  }
+  applyTheme();
+  try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme); } catch (e) { /* old browsers */ }
+
   function markActive() {
     var p = P(), t = today();
     if (p.active.indexOf(t) === -1) { p.active.push(t); if (p.active.length > 800) p.active = p.active.slice(-800); }
@@ -391,7 +403,7 @@
         '<div class="soundline"><b>' + esc(L.sound) + '</b><span class="te">' + esc(L.te) + '</span></div>' +
         '<div></div>' +
         '<p class="tip small" style="margin:0">' + esc(L.tip) + '</p>' +
-        '<div class="example"><span class="gr" lang="el">' + esc(L.ex.el) + '</span><span class="tel te" style="color:var(--lapis)">' + esc(L.ex.te) + '</span><span class="muted small" style="flex:1">' + esc(L.ex.en) + '</span>' + speakBtn(L.ex.el, L.ex.en) + '</div>' +
+        '<div class="example"><span class="gr" lang="el">' + esc(L.ex.el) + '</span><span class="tel te" style="color:var(--accent)">' + esc(L.ex.te) + '</span><span class="muted small" style="flex:1">' + esc(L.ex.en) + '</span>' + speakBtn(L.ex.el, L.ex.en) + '</div>' +
       '</section>' +
 
       '<section class="panel stack quiz">' +
@@ -461,6 +473,12 @@
     }
     $view.innerHTML =
       '<div class="section-title"><h2>Names and settings</h2><button type="button" class="btn quiet" data-tab="today">Done</button></div>' +
+      '<section class="panel"><div class="switch" style="justify-content:space-between;flex-wrap:wrap">Appearance <div class="seg" role="group" aria-label="Appearance">' +
+        ['system', 'light', 'dark'].map(function (m) {
+          var on = (S.theme || 'system') === m;
+          return '<button type="button" data-theme-pick="' + m + '" aria-pressed="' + on + '">' + (m === 'system' ? 'Phone setting' : m === 'light' ? 'Light' : 'Dark') + '</button>';
+        }).join('') +
+      '</div></div></section>' +
       '<section class="panel stack">' +
         '<div class="switch" style="justify-content:space-between;flex-wrap:wrap">This phone is for <div class="seg" role="group" aria-label="This phone is for">' +
           '<button type="button" data-who="a" aria-pressed="' + (S.who === 'a') + '">' + esc(a.name) + '</button>' +
@@ -576,6 +594,7 @@
       } else selectCode();
       return;
     }
+    if (d.themePick) { S.theme = d.themePick; save(); applyTheme(); refresh(); return; }
     if (d.retry) {
       if (window.MaziSync && S.couple) { window.MaziSync.connect(S.couple); toast('Trying again…'); }
       return;
