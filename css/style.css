@@ -257,3 +257,16 @@ td .gr { font-family: var(--f-greek); font-size: 20px; }
   .flash, .detail, .verse { animation: rise .22s ease-out; }
   @keyframes rise { from { transform: translateY(4px); opacity: .6; } to { transform: none; opacity: 1; } }
 }
+
+/* Together */
+.person { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; align-items: center; padding-block: 8px; border-top: 1px solid var(--line); }
+.together .eyebrow + .person { border-top: 0; padding-top: 0; }
+.pname { min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.pname .small { font-weight: 400; }
+.pdots { display: flex; gap: 4px; }
+.pdots span { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--olive); }
+.pdots span.on { background: var(--olive); }
+.pstreak { display: flex; flex-direction: column; align-items: center; min-width: 44px; }
+.pstreak b { font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--gold); }
+.pstreak span { font-size: 11px; color: var(--muted); }
+.code { flex: 1; min-width: 0; font: 600 17px/1.3 ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .06em; background: var(--lapis-soft); color: var(--lapis); padding: 10px 12px; border-radius: 10px; overflow-wrap: anywhere; user-select: all; }

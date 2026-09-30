@@ -29,6 +29,17 @@ On first open, each phone asks whose phone it is. Progress (streak, cards, ticks
 
 Read-aloud uses the device's Greek text-to-speech voice. If nothing plays: on iPhone, Settings › Accessibility › Spoken Content › Voices › Greek; on Android, Settings › Text-to-speech › Speech Services by Google › Install voice data › Greek.
 
+## Sharing progress between two phones
+
+`js/sync.js` connects to a free Firebase project (`mazi-bdd67`). One phone creates a couple code in Settings › Together and the other enters it. Each phone then shows both people's streaks and today's progress on the Today screen. Only name, streak, day number, today's ticks and the number of phrases started are shared.
+
+One-time Firebase setup:
+1. Authentication › Sign-in method › enable **Anonymous**.
+2. Authentication › Settings › Authorized domains › add `leap4one-lgtm.github.io`.
+3. Firestore Database › Rules › paste the contents of `firestore.rules` › Publish.
+
+Sync only works from the GitHub Pages site. Everything else in the app works without it.
+
 ## Editing content
 
 All phrases, prompts, letters and verses live in `js/data.js`.

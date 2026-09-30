@@ -44,7 +44,52 @@
     return freshState();
   }
   var S = load();
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignore */ } }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignore */ } schedulePush(); }
+
+  /* ---------- sync with your spouse (js/sync.js does the network part) ---------- */
+  var remote = { status: 'off', uid: null, members: [], error: '' };
+  var pushTimer;
+  function schedulePush() {
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(function () {
+      if (S.couple && window.MaziSync) window.MaziSync.push(summary()).catch(function () { /* retried on next save */ });
+    }, 1200);
+  }
+  function summary() {
+    var p = P(), st = STAGES[stageFor(dayNumber(p))], ch = p.checks[today()] || {};
+    return {
+      name: p.name, streak: streak(p), day: dayNumber(p), date: today(),
+      done: st.items.filter(function (it) { return ch[it.id]; }).length, total: st.items.length,
+      started: Object.keys(p.cards).length
+    };
+  }
+  var CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  function newCode() {
+    var a = new Uint32Array(16), out = '';
+    (window.crypto || window.msCrypto).getRandomValues(a);
+    for (var i = 0; i < 16; i++) { out += CODE_CHARS[a[i] % CODE_CHARS.length]; if (i % 4 === 3 && i < 15) out += '-'; }
+    return out;
+  }
+  function cleanCode(v) {
+    var c = String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (c.length !== 16) return null;
+    for (var i = 0; i < c.length; i++) if (CODE_CHARS.indexOf(c[i]) === -1) return null;
+    return c.match(/.{4}/g).join('-');
+  }
+  function connectCouple(code) {
+    S.couple = code; save();
+    remote.status = 'connecting'; remote.error = ''; refresh();
+    window.MaziSync.connect(code);
+  }
+  window.MaziApp = {
+    couple: function () { return S.couple || null; },
+    summary: summary,
+    setRemote: function (patch) {
+      var statusChanged = patch.status !== undefined && patch.status !== remote.status;
+      Object.keys(patch).forEach(function (k) { remote[k] = patch[k]; });
+      if (current === 'today' || (current === 'settings' && statusChanged)) refresh();
+    }
+  };
   function P() { return S.profiles[S.who]; }
 
   function markActive() {
@@ -160,8 +205,42 @@
         '<p class="small muted" style="margin:0">' + esc(prompt.en) + '</p>' +
       '</section>' +
 
+      togetherHTML() +
       '<section class="stack"><div class="eyebrow">Phrase of the day</div>' + phraseHTML(phrase) + '</section>' +
       (si < 2 ? '<p class="small muted">From day 181 your daily plan adds a Bible verse. You can open the Bible tab any time before that.</p>' : '');
+  }
+
+  function personRow(m, isMe) {
+    var t = today();
+    var fresh = m.date === t || m.date === addDays(t, -1);
+    var st = fresh ? m.streak : 0;
+    var doneToday = m.date === t ? m.done : 0;
+    var total = m.total || 3;
+    var dots = '';
+    for (var i = 0; i < total; i++) dots += '<span class="' + (i < doneToday ? 'on' : '') + '"></span>';
+    return '<div class="person">' +
+      '<div class="pname">' + esc(m.name) + (isMe ? ' <span class="muted small">(you)</span>' : '') + '<div class="muted small">Day ' + esc(m.day) + ' · ' + esc(m.started) + ' phrases</div></div>' +
+      '<div class="pdots" title="' + doneToday + ' of ' + total + ' parts done today">' + dots + '</div>' +
+      '<div class="pstreak"><b>' + st + '</b><span>streak</span></div>' +
+    '</div>';
+  }
+  function togetherHTML() {
+    if (!S.couple) {
+      return '<section class="panel together stack"><div class="eyebrow">Together</div>' +
+        '<p style="margin:0" class="small">Connect with your spouse to see each other\'s streak and today\'s progress.</p>' +
+        '<button type="button" class="btn" data-go="settings">Connect</button></section>';
+    }
+    var me = summary();
+    var others = remote.members.filter(function (m) { return m.uid !== remote.uid; })
+      .sort(function (a, b) { return (b.updated || 0) - (a.updated || 0); }).slice(0, 1);
+    var body = personRow(me, true);
+    if (others.length) body += personRow(others[0], false);
+    else if (remote.status === 'on') body += '<p class="small muted" style="margin:0">Waiting for your spouse to join with your couple code.</p>';
+    var status = remote.status === 'on' ? '' :
+      remote.status === 'error' ? '<p class="small" style="margin:0;color:var(--rose)">Can\'t reach the shared progress right now. It will update when you\'re back online.</p>' :
+      remote.status === 'unavailable' ? '<p class="small muted" style="margin:0">Sync works in the Mazí app from your GitHub link, not in this preview.</p>' :
+      '<p class="small muted" style="margin:0">Connecting…</p>';
+    return '<section class="panel together stack"><div class="eyebrow">Together</div>' + body + status + '</section>';
   }
 
   /* ---------- phrases ---------- */
@@ -388,8 +467,35 @@
           '<button type="button" data-who="b" aria-pressed="' + (S.who === 'b') + '">' + esc(b.name) + '</button></div></div>' +
         '<p class="small muted" style="margin:0">Progress is saved on this phone only. Each of you keeps your own streak and cards on your own phone. The daily talk prompt and verse are the same on both phones, so you can do them together.</p>' +
       '</section>' +
+      coupleHTML() +
       '<div class="grid2">' + block('a', a) + block('b', b) + '</div>' +
       installHelp();
+  }
+
+  var leaveArmed = false;
+  function coupleHTML() {
+    var head = '<div class="section-title"><h2>Together</h2></div>';
+    if (!window.MaziSync && remote.status === 'unavailable') {
+      return '<section class="panel stack">' + head + '<p class="small muted" style="margin:0">Sync works in the Mazí app from your GitHub link. Open it there to connect with your spouse.</p></section>';
+    }
+    if (S.couple) {
+      var st = remote.status === 'on' ? 'Connected' : remote.status === 'error' ? 'Offline, will retry' : 'Connecting…';
+      return '<section class="panel stack">' + head +
+        '<p class="small" style="margin:0"><b>' + st + '.</b> Your couple code:</p>' +
+        '<div class="row" style="flex-wrap:nowrap"><code class="code" id="couple-code">' + esc(S.couple) + '</code><button type="button" class="btn" data-copy="1">Copy</button></div>' +
+        '<p class="small muted" style="margin:0">Your spouse enters this code in Settings › Together on their phone. Keep it between the two of you, like a password.</p>' +
+        '<button type="button" class="btn danger' + (leaveArmed ? ' armed' : '') + '" data-leave="1">' + (leaveArmed ? 'Tap again to disconnect this phone' : 'Disconnect this phone') + '</button>' +
+        (remote.error ? '<p class="small muted" style="margin:0">Details: ' + esc(remote.error) + '</p>' : '') +
+      '</section>';
+    }
+    return '<section class="panel stack">' + head +
+      '<p class="small" style="margin:0">See each other\'s streak and today\'s progress. One of you creates a code; the other enters it.</p>' +
+      '<button type="button" class="btn primary" data-create="1">Create a couple code</button>' +
+      '<form class="stack" id="join-form" style="gap:8px">' +
+        '<div class="field"><label for="join-code">Or enter your spouse\'s code</label><input id="join-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX"></div>' +
+        '<button type="submit" class="btn">Join</button>' +
+      '</form>' +
+    '</section>';
   }
 
   function installHelp() {
@@ -426,7 +532,7 @@
     if (!TABS[tab]) tab = 'today';
     if (!S.setup) tab = 'welcome';
     current = tab;
-    if (tab !== 'settings') resetArmed = null;
+    if (tab !== 'settings') { resetArmed = null; leaveArmed = false; }
     document.querySelectorAll('#tabs button').forEach(function (b) {
       if (b.dataset.tab === tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
@@ -457,6 +563,25 @@
     }
     if (d.nextq) { newQuiz(); refresh(); return; }
     if (d.verse) { verseIdx = (verseIdx + Number(d.verse) + D.verses.length) % D.verses.length; markActive(); refresh(); return; }
+    if (d.create) {
+      if (!window.MaziSync) { toast('Sync is not available here. Open Mazí from your GitHub link.'); return; }
+      connectCouple(newCode()); return;
+    }
+    if (d.copy) {
+      var code = S.couple;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(function () { toast('Code copied. Send it to your spouse.'); }, function () { selectCode(); });
+      } else selectCode();
+      return;
+    }
+    if (d.leave) {
+      if (!leaveArmed) { leaveArmed = true; refresh(); return; }
+      leaveArmed = false;
+      var old = S.couple; S.couple = null; save();
+      if (window.MaziSync) window.MaziSync.disconnect(old);
+      remote.status = 'off'; remote.members = []; remote.error = '';
+      toast('This phone is disconnected.'); refresh(); return;
+    }
     if (d.reset) {
       if (resetArmed === d.reset) {
         var name = S.profiles[d.reset].name;
@@ -467,7 +592,23 @@
     }
   });
 
+  function selectCode() {
+    var el = document.getElementById('couple-code');
+    if (!el) return;
+    var r = document.createRange(); r.selectNodeContents(el);
+    var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    toast('Code selected. Copy it and send it to your spouse.');
+  }
+
   document.addEventListener('submit', function (e) {
+    if (e.target.id === 'join-form') {
+      e.preventDefault();
+      var code = cleanCode(document.getElementById('join-code').value);
+      if (!code) { toast('That code doesn\'t look right. It has 16 letters and numbers.'); return; }
+      if (!window.MaziSync) { toast('Sync is not available here. Open Mazí from your GitHub link.'); return; }
+      connectCouple(code); toast('Connected. You\'ll see each other on the Today screen.');
+      return;
+    }
     if (e.target.id !== 'welcome-form') return;
     e.preventDefault();
     var me = document.getElementById('w-me').value.trim();
@@ -507,4 +648,8 @@
   window.addEventListener('hashchange', function () { var h = location.hash.slice(1); if (h && h !== current) go(h); });
 
   go((location.hash || '#today').slice(1));
+  // If sync.js fails to load (offline, or a host that blocks it), say so instead of spinning.
+  setTimeout(function () {
+    if (!window.MaziSync) window.MaziApp.setRemote({ status: 'unavailable' });
+  }, 8000);
 })();

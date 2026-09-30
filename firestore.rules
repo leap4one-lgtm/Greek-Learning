@@ -1,0 +1,26 @@
+rules_version = '2';
+
+// Mazí: each phone signs in anonymously and writes only its own progress
+// under couples/{code}/members/{its sign-in id}. Reading needs the 16-character
+// couple code, which only the two of you know. Nothing else can be read or written.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /couples/{code}/members/{member} {
+      allow read: if request.auth != null
+        && code.matches('^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$');
+
+      allow create, update: if request.auth != null
+        && request.auth.uid == member
+        && code.matches('^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$')
+        && request.resource.data.keys().hasOnly(['name', 'streak', 'day', 'date', 'done', 'total', 'started', 'updated'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 24
+        && request.resource.data.date is string && request.resource.data.date.size() == 10
+        && request.resource.data.streak is int && request.resource.data.day is int
+        && request.resource.data.done is int && request.resource.data.total is int
+        && request.resource.data.started is int
+        && request.resource.data.updated == request.time;
+
+      allow delete: if request.auth != null && request.auth.uid == member;
+    }
+  }
+}
