@@ -479,13 +479,15 @@
       return '<section class="panel stack">' + head + '<p class="small muted" style="margin:0">Sync works in the Mazí app from your GitHub link. Open it there to connect with your spouse.</p></section>';
     }
     if (S.couple) {
-      var st = remote.status === 'on' ? 'Connected' : remote.status === 'error' ? 'Offline, will retry' : 'Connecting…';
+      var setup = /^auth\/|permission-denied|unauthorized/.test(remote.error || '');
+      var st = remote.status === 'on' ? 'Connected' : remote.status === 'error' ? (setup ? 'Firebase setup needs attention' : 'Offline, will retry') : 'Connecting…';
       return '<section class="panel stack">' + head +
         '<p class="small" style="margin:0"><b>' + st + '.</b> Your couple code:</p>' +
         '<div class="row" style="flex-wrap:nowrap"><code class="code" id="couple-code">' + esc(S.couple) + '</code><button type="button" class="btn" data-copy="1">Copy</button></div>' +
         '<p class="small muted" style="margin:0">Your spouse enters this code in Settings › Together on their phone. Keep it between the two of you, like a password.</p>' +
         '<button type="button" class="btn danger' + (leaveArmed ? ' armed' : '') + '" data-leave="1">' + (leaveArmed ? 'Tap again to disconnect this phone' : 'Disconnect this phone') + '</button>' +
         (remote.error ? '<p class="small muted" style="margin:0">Details: ' + esc(remote.error) + '</p>' : '') +
+        (remote.status === 'error' ? '<button type="button" class="btn" data-retry="1">Try again</button>' : '') +
       '</section>';
     }
     return '<section class="panel stack">' + head +
@@ -572,6 +574,10 @@
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(code).then(function () { toast('Code copied. Send it to your spouse.'); }, function () { selectCode(); });
       } else selectCode();
+      return;
+    }
+    if (d.retry) {
+      if (window.MaziSync && S.couple) { window.MaziSync.connect(S.couple); toast('Trying again…'); }
       return;
     }
     if (d.leave) {

@@ -26,7 +26,10 @@ let code = null;
 let unsubscribe = null;
 let signingIn = null;
 
-function report(patch) { if (window.MaziApp) window.MaziApp.setRemote(patch); }
+function report(patch) {
+  if (patch.status) lastError = patch.status === 'error';
+  if (window.MaziApp) window.MaziApp.setRemote(patch);
+}
 
 function signIn() {
   if (uid) return Promise.resolve(uid);
@@ -86,6 +89,11 @@ window.MaziSync = { connect, push, disconnect };
 // Reconnect on every app start, and refresh our numbers when the app comes back to the front.
 const saved = window.MaziApp && window.MaziApp.couple();
 if (saved) connect(saved);
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && code) push(window.MaziApp.summary()).catch(() => {});
-});
+let lastError = false;
+function retryOrPush() {
+  if (!code) return;
+  if (lastError || !unsubscribe) connect(code);
+  else push(window.MaziApp.summary()).catch(() => {});
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') retryOrPush(); });
+window.addEventListener('online', retryOrPush);
