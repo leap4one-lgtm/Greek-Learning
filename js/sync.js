@@ -25,6 +25,7 @@ let uid = null;
 let code = null;
 let unsubscribe = null;
 let signingIn = null;
+let lastError = false;
 
 function report(patch) {
   if (patch.status) lastError = patch.status === 'error';
@@ -89,7 +90,6 @@ window.MaziSync = { connect, push, disconnect };
 // Reconnect on every app start, and refresh our numbers when the app comes back to the front.
 const saved = window.MaziApp && window.MaziApp.couple();
 if (saved) connect(saved);
-let lastError = false;
 function retryOrPush() {
   if (!code) return;
   if (lastError || !unsubscribe) connect(code);
