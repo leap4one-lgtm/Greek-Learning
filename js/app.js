@@ -1,50 +1,147 @@
 (function () {
   'use strict';
 
-  var D = window.MAZI_DATA;
+  var C = window.MAZI_COURSE;
+  var G = window.GreekSay;
   var KEY = 'mazi-greek-v1';
-  var NEW_PER_DAY = 8;
   var DAY_MS = 86400000;
-  var STAGES = [
-    { from: 1, to: 14, name: 'Letters & sounds', items: [
-      { id: 'letters', label: 'Learn and quiz the letters', min: 10, tab: 'alphabet' },
-      { id: 'cards', label: 'Review your cards', min: 10, tab: 'cards' },
-      { id: 'talk', label: 'Talk together in Greek', min: 10, tab: 'today' }
-    ] },
-    { from: 15, to: 180, name: 'Everyday Greek', items: [
-      { id: 'cards', label: 'Review your cards', min: 10, tab: 'cards' },
-      { id: 'phrases', label: 'Read and say new phrases', min: 10, tab: 'phrases' },
-      { id: 'talk', label: 'Talk together in Greek', min: 10, tab: 'today' }
-    ] },
-    { from: 181, to: Infinity, name: 'Greek + Bible', items: [
-      { id: 'cards', label: 'Review your cards', min: 10, tab: 'cards' },
-      { id: 'verse', label: 'Read today\'s verse word by word', min: 10, tab: 'bible' },
-      { id: 'talk', label: 'Talk together in Greek', min: 10, tab: 'today' }
-    ] }
+  var REVIEW_MAX = 20;
+  var BLOCKS = [
+    { id: 'review', label: 'Review', min: 5 },
+    { id: 'new', label: 'New', min: 10 },
+    { id: 'practice', label: 'Practice', min: 10 },
+    { id: 'together', label: 'Together', min: 5 }
   ];
+
+  var LESSONS = {};
+  C.lessons.forEach(function (l) { LESSONS[l.n] = l; });
+  var LAST = C.lessons.length ? C.lessons[C.lessons.length - 1].n : 0;
 
   /* ---------- dates ---------- */
   function pad(n) { return String(n).padStart(2, '0'); }
   function dayStr(d) { d = d || new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
   function parseDay(s) { var p = s.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
   function addDays(s, n) { var d = parseDay(s); d.setDate(d.getDate() + n); return dayStr(d); }
-  function diffDays(a, b) { return Math.round((parseDay(b) - parseDay(a)) / DAY_MS); }
   function today() { return dayStr(); }
-  // Same number for both of you on the same date, so you share the prompt and verse.
-  function dateIndex() { return Math.floor(parseDay(today()).getTime() / DAY_MS); }
 
   /* ---------- state ---------- */
-  function freshProfile(name) { return { name: name, start: today(), cards: {}, checks: {}, active: [], newLog: {} }; }
-  function freshState() { return { v: 1, who: 'a', front: 'el', profiles: { a: freshProfile('Husband'), b: freshProfile('Wife') } }; }
+  function freshProfile(name) {
+    return { name: name, completed: 0, finishedOn: {}, cards: {}, active: [], session: null, blocks: { date: '', n: 0 }, aheadOk: 0 };
+  }
+  function freshState() {
+    return { v: 2, who: 'a', theme: 'system', setup: false, couple: null, profiles: { a: freshProfile('Husband'), b: freshProfile('Wife') } };
+  }
   function load() {
     try {
       var raw = localStorage.getItem(KEY);
-      if (raw) { var s = JSON.parse(raw); if (s && s.v === 1 && s.profiles && s.profiles.a && s.profiles.b) return s; }
+      if (raw) {
+        var s = JSON.parse(raw);
+        if (s && s.v === 2 && s.profiles) return s;
+        if (s && s.v === 1 && s.profiles) {
+          // Earlier version: keep names, theme, sync code and whose phone it is. Progress starts fresh with the course.
+          var f = freshState();
+          f.who = s.who || 'a'; f.theme = s.theme || 'system'; f.setup = !!s.setup; f.couple = s.couple || null;
+          f.profiles.a.name = s.profiles.a.name; f.profiles.b.name = s.profiles.b.name;
+          return f;
+        }
+      }
     } catch (e) { /* storage unavailable */ }
     return freshState();
   }
   var S = load();
+  function P() { return S.profiles[S.who]; }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignore */ } schedulePush(); }
+
+  function markActive() {
+    var p = P(), t = today();
+    if (p.active.indexOf(t) === -1) { p.active.push(t); if (p.active.length > 800) p.active = p.active.slice(-800); }
+  }
+  function streak(p) {
+    var set = {}; p.active.forEach(function (d) { set[d] = 1; });
+    var d = today();
+    if (!set[d]) d = addDays(d, -1);
+    var n = 0;
+    while (set[d]) { n++; d = addDays(d, -1); }
+    return n;
+  }
+  function blocksToday(p) { return p.blocks && p.blocks.date === today() ? p.blocks.n : 0; }
+  function setBlocks(n) {
+    var p = P();
+    if (!p.blocks || p.blocks.date !== today()) p.blocks = { date: today(), n: 0 };
+    p.blocks.n = Math.max(p.blocks.n, n);
+  }
+
+  /* ---------- appearance ---------- */
+  function applyTheme() {
+    var t = S.theme === 'light' || S.theme === 'dark' ? S.theme : null;
+    if (t) document.documentElement.setAttribute('data-theme', t);
+    else document.documentElement.removeAttribute('data-theme');
+    var dark = t ? t === 'dark' : !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', dark ? '#170D1F' : '#F6F2F8');
+  }
+  applyTheme();
+  try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme); } catch (e) { /* old browsers */ }
+
+  /* ---------- helpers ---------- */
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function shuffle(a) { a = a.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function initial(name) { return esc((name || '?').trim().charAt(0).toUpperCase() || '?'); }
+  var $view = document.getElementById('view');
+  var toastTimer;
+  function toast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 2600);
+  }
+
+  /* ---------- items ---------- */
+  function itemsOf(n) {
+    var l = LESSONS[n];
+    return l ? l.items.map(function (it, i) { return Object.assign({ key: n + ':' + i, lesson: n }, it); }) : [];
+  }
+  function itemByKey(key) {
+    var parts = key.split(':'), l = LESSONS[+parts[0]];
+    return l && l.items[+parts[1]] ? Object.assign({ key: key, lesson: +parts[0] }, l.items[+parts[1]]) : null;
+  }
+  function isLetter(it) { return it.k === 'letter'; }
+  function pron(it) {
+    if (isLetter(it)) return { tr: it.say, te: it.te };
+    return { tr: G.latin(it.el), te: G.telugu(it.el) };
+  }
+  function shown(it) { return isLetter(it) ? it.up + ' ' + it.el : it.el; }
+  function learnedItems() {
+    var out = [];
+    for (var n = 1; n <= P().completed; n++) out = out.concat(itemsOf(n));
+    return out;
+  }
+
+  /* ---------- speech ---------- */
+  var greekVoice = null;
+  function pickVoice() {
+    if (!('speechSynthesis' in window)) return;
+    var vs = window.speechSynthesis.getVoices() || [];
+    greekVoice = vs.find(function (v) { return /^el(-|_|$)/i.test(v.lang); }) || null;
+  }
+  if ('speechSynthesis' in window) {
+    pickVoice();
+    try { window.speechSynthesis.addEventListener('voiceschanged', pickVoice); } catch (e) { window.speechSynthesis.onvoiceschanged = pickVoice; }
+  }
+  var warnedVoice = false;
+  function say(text) {
+    if (!('speechSynthesis' in window)) { toast('This browser cannot read aloud. Use the pronunciation guide.'); return; }
+    var clean = String(text).replace(/\s*\/\s*/g, ', ').replace(/_{2,}/g, '').replace(/…/g, '');
+    var u = new SpeechSynthesisUtterance(clean);
+    u.lang = 'el-GR'; u.rate = 0.8;
+    if (greekVoice) u.voice = greekVoice;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+    if (!greekVoice && !warnedVoice) { warnedVoice = true; toast('No Greek voice found. See settings for how to add one.'); }
+  }
+  var SPEAK_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+  function speakBtn(text, label, big) {
+    return '<button type="button" class="speak' + (big ? ' big' : '') + '" data-say="' + esc(text) + '" aria-label="Listen: ' + esc(label || text) + '">' + SPEAK_ICON + '</button>';
+  }
 
   /* ---------- sync with your spouse (js/sync.js does the network part) ---------- */
   var remote = { status: 'off', uid: null, members: [], error: '' };
@@ -55,18 +152,26 @@
       if (S.couple && window.MaziSync) window.MaziSync.push(summary()).catch(function () { /* retried on next save */ });
     }, 1200);
   }
+  // Stored fields: "day" holds the number of lessons finished; "done"/"total" are today's session blocks.
   function summary() {
-    var p = P(), st = STAGES[stageFor(dayNumber(p))], ch = p.checks[today()] || {};
-    return {
-      name: p.name, streak: streak(p), day: dayNumber(p), date: today(),
-      done: st.items.filter(function (it) { return ch[it.id]; }).length, total: st.items.length,
-      started: Object.keys(p.cards).length
-    };
+    var p = P();
+    return { name: p.name, streak: streak(p), day: p.completed, date: today(), done: blocksToday(p), total: BLOCKS.length, started: Object.keys(p.cards).length };
+  }
+  function partner() {
+    if (!S.couple) return null;
+    var others = remote.members.filter(function (m) { return m.uid !== remote.uid; })
+      .sort(function (a, b) { return (b.updated || 0) - (a.updated || 0); });
+    return others[0] || null;
+  }
+  function partnerName() {
+    var m = partner();
+    if (m && m.name) return m.name;
+    return S.profiles[S.who === 'a' ? 'b' : 'a'].name;
   }
   var CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   function newCode() {
     var a = new Uint32Array(16), out = '';
-    (window.crypto || window.msCrypto).getRandomValues(a);
+    window.crypto.getRandomValues(a);
     for (var i = 0; i < 16; i++) { out += CODE_CHARS[a[i] % CODE_CHARS.length]; if (i % 4 === 3 && i < 15) out += '-'; }
     return out;
   }
@@ -87,518 +192,547 @@
     setRemote: function (patch) {
       var statusChanged = patch.status !== undefined && patch.status !== remote.status;
       Object.keys(patch).forEach(function (k) { remote[k] = patch[k]; });
-      if (current === 'today' || (current === 'settings' && statusChanged)) refresh();
+      if (current === 'home' || (current === 'settings' && statusChanged)) refresh();
     }
   };
-  function P() { return S.profiles[S.who]; }
 
-  /* ---------- appearance ---------- */
-  function applyTheme() {
-    var t = S.theme === 'light' || S.theme === 'dark' ? S.theme : null;
-    if (t) document.documentElement.setAttribute('data-theme', t);
-    else document.documentElement.removeAttribute('data-theme');
-    var dark = t ? t === 'dark' : !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', dark ? '#170D1F' : '#F6F2F8');
+  /* ---------- together rings ---------- */
+  function ring(pct, label, cls) {
+    var c = 2 * Math.PI * 17, off = c * (1 - Math.max(0, Math.min(1, pct)));
+    return '<span class="ring ' + (cls || '') + '"><svg viewBox="0 0 42 42" aria-hidden="true"><circle class="track" cx="21" cy="21" r="17"/>' +
+      '<circle class="fill" cx="21" cy="21" r="17" stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '"/></svg><b>' + label + '</b></span>';
   }
-  applyTheme();
-  try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme); } catch (e) { /* old browsers */ }
-
-  function markActive() {
-    var p = P(), t = today();
-    if (p.active.indexOf(t) === -1) { p.active.push(t); if (p.active.length > 800) p.active = p.active.slice(-800); }
-    save();
-  }
-  function streak(p) {
-    var set = {}; p.active.forEach(function (d) { set[d] = 1; });
-    var d = today();
-    if (!set[d]) d = addDays(d, -1);
-    var n = 0;
-    while (set[d]) { n++; d = addDays(d, -1); }
-    return n;
-  }
-  function dayNumber(p) { return Math.max(1, diffDays(p.start, today()) + 1); }
-  function stageFor(n) { for (var i = 0; i < STAGES.length; i++) if (n >= STAGES[i].from && n <= STAGES[i].to) return i; return 0; }
-
-  /* ---------- helpers ---------- */
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  var $view = document.getElementById('view');
-  var toastTimer;
-  function toast(msg) {
-    var t = document.getElementById('toast');
-    t.textContent = msg; t.hidden = false;
-    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 2600);
-  }
-  var SPEAK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" stroke="none"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></svg>';
-  function speakBtn(text, label) {
-    return '<button type="button" class="speak" data-say="' + esc(text) + '" aria-label="Listen: ' + esc(label || text) + '">' + SPEAK_ICON + '</button>';
-  }
-
-  /* ---------- speech ---------- */
-  var greekVoice = null;
-  function pickVoice() {
-    if (!('speechSynthesis' in window)) return;
-    var vs = window.speechSynthesis.getVoices() || [];
-    greekVoice = vs.find(function (v) { return /^el(-|_|$)/i.test(v.lang); }) || null;
-  }
-  if ('speechSynthesis' in window) {
-    pickVoice();
-    try { window.speechSynthesis.addEventListener('voiceschanged', pickVoice); } catch (e) { window.speechSynthesis.onvoiceschanged = pickVoice; }
-  }
-  function say(text) {
-    if (!('speechSynthesis' in window)) { toast('This browser cannot read aloud. Use the pronunciation guide.'); return; }
-    // Read "a / b" alternatives as two separate words.
-    var clean = text.replace(/\s*\/\s*/g, ', ');
-    var u = new SpeechSynthesisUtterance(clean);
-    u.lang = 'el-GR'; u.rate = 0.82;
-    if (greekVoice) u.voice = greekVoice;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
-    if (!greekVoice) toast('No Greek voice found. Add Greek text-to-speech in your phone settings.');
-  }
-
-  /* ---------- header ---------- */
-  function renderWho() {
+  function renderHeader() {
     var el = document.getElementById('who');
-    if (!S.setup) { el.innerHTML = ''; return; }
-    el.innerHTML = '<button type="button" data-go="settings" aria-pressed="true" title="Names and settings">' + esc(P().name) + '</button>' +
-      '<button type="button" class="gear" data-go="settings" aria-label="Names and settings" title="Names and settings">⚙</button>';
+    el.innerHTML = S.setup ? '<button type="button" class="avatar" data-go="settings" aria-label="Settings" title="Settings">' + initial(P().name) + '</button>' : '';
+  }
+  function togetherHTML() {
+    var p = P(), t = today();
+    var me = '<div class="person">' + ring(blocksToday(p) / BLOCKS.length, initial(p.name)) +
+      '<div><b>' + streak(p) + '</b><span>' + esc(p.name) + '\'s streak</span></div></div>';
+    if (!S.couple) {
+      return '<section class="together">' + me + '<button type="button" class="linkish" data-go="settings">Connect with your spouse ›</button></section>';
+    }
+    var m = partner(), other;
+    if (m) {
+      var fresh = m.date === t || m.date === addDays(t, -1);
+      var done = m.date === t ? (m.done || 0) : 0;
+      other = '<div class="person">' + ring(done / (m.total || BLOCKS.length), initial(m.name), 'partner') +
+        '<div><b>' + (fresh ? m.streak : 0) + '</b><span>' + esc(m.name) + '\'s streak</span></div></div>';
+    } else {
+      other = '<p class="small muted">' + (remote.status === 'on' ? 'Waiting for your spouse to connect.' : remote.status === 'error' ? 'Can\'t reach shared progress right now.' : 'Connecting…') + '</p>';
+    }
+    return '<section class="together" aria-label="Today\'s progress and streaks">' + me + other + '</section>';
   }
 
-  /* ---------- today ---------- */
-  function phraseById(id) { return D.phrases.find(function (x) { return x.id === id; }); }
-  function phraseHTML(ph) {
-    return '<article class="panel phrase">' +
-      '<div class="gr" lang="el">' + esc(ph.el) + '</div>' + speakBtn(ph.el, ph.en) +
-      '<div class="pron"><span class="tel">' + esc(ph.te) + '</span><span class="tr">' + esc(ph.tr) + '</span></div>' +
-      '<div class="mean"><span class="en">' + esc(ph.en) + '</span><span class="te">' + esc(ph.tm) + '</span></div>' +
-      (ph.note ? '<div class="note">' + esc(ph.note) + '</div>' : '') +
+  /* ---------- home ---------- */
+  function lessonLabel(n) {
+    var u = C.units.find(function (x) { return n >= x.from && n <= x.to; });
+    return 'Lesson ' + n + (u ? ' · ' + u.title : '');
+  }
+  function waitingFor(next) {
+    var m = partner();
+    if (!m) return false;
+    return (m.day || 0) < next - 1 && P().aheadOk !== next;
+  }
+  function lessonCard(L, cta) {
+    return '<section class="hero">' +
+      '<div class="eyebrow">' + esc(lessonLabel(L.n)) + '</div>' +
+      '<h1>' + esc(L.title) + '</h1>' +
+      '<p class="muted">' + esc(L.goal) + '</p>' +
+      '<button type="button" class="start" data-start="1"><span><b>' + esc(cta) + '</b><small>' +
+        BLOCKS.map(function (b) { return b.label; }).join(' · ') + '</small></span><i aria-hidden="true">›</i></button>' +
+    '</section>';
+  }
+  function renderHome() {
+    var p = P(), next = p.completed + 1, L = LESSONS[next];
+    var finishedToday = p.completed > 0 && p.finishedOn[p.completed] === today();
+    var due = dueCards().length;
+    var body;
+
+    if (p.session && p.session.n === next && L) {
+      body = lessonCard(L, 'Continue · ' + BLOCKS[p.session.block].label);
+    } else if (!L) {
+      body = '<section class="hero"><div class="eyebrow">All caught up</div><h1>You\'ve finished every lesson written so far.</h1>' +
+        '<p class="muted">New lessons are on the way. Meanwhile, keep your cards fresh.</p>' +
+        (due ? '<button type="button" class="btn primary wide" data-extra="1">Review ' + due + ' cards</button>' : '') + '</section>';
+    } else if (finishedToday) {
+      body = '<section class="hero done"><div class="eyebrow">Lesson ' + p.completed + ' done</div><h1 lang="el">Μπράβο!</h1>' +
+        '<p class="muted">That\'s today\'s 30 minutes. Tomorrow: lesson ' + next + ', ' + esc(L.title) + '.</p>' +
+        (due ? '<button type="button" class="btn wide" data-extra="1">Extra review · ' + due + ' cards</button>' : '') +
+        '<button type="button" class="linkish" data-start="1">Start lesson ' + next + ' anyway ›</button></section>';
+    } else if (waitingFor(next)) {
+      var m = partner();
+      body = '<section class="hero"><div class="eyebrow">' + esc(lessonLabel(next)) + '</div><h1>Waiting for ' + esc(m.name) + '</h1>' +
+        '<p class="muted">You take each lesson together. ' + esc(m.name) + ' still has lesson ' + ((m.day || 0) + 1) + ' to finish. Then lesson ' + next + ' opens for you both.</p>' +
+        (due ? '<button type="button" class="btn primary wide" data-extra="1">Review ' + due + ' cards meanwhile</button>' : '') +
+        '<button type="button" class="linkish" data-ahead="' + next + '">Go ahead anyway ›</button></section>';
+    } else {
+      body = lessonCard(L, 'Start today\'s 30 minutes');
+    }
+
+    $view.innerHTML = togetherHTML() + body +
+      (p.completed ? '<button type="button" class="linkish center" data-tab="course">Look back at finished lessons ›</button>' : '');
+  }
+
+  /* ---------- review cards (spaced repetition) ---------- */
+  function dueCards() {
+    var p = P(), t = today();
+    return Object.keys(p.cards).filter(function (k) { return p.cards[k].due <= t && itemByKey(k); })
+      .sort(function (a, b) { return p.cards[a].due < p.cards[b].due ? -1 : 1; });
+  }
+  function gradeCard(key, good) {
+    var p = P(), t = today(), c = p.cards[key];
+    if (!c) return;
+    if (!good) { c.reps = 0; c.ivl = 0; c.due = t; return; }
+    c.ivl = c.reps === 0 ? 1 : c.reps === 1 ? 3 : Math.round(Math.max(c.ivl, 1) * 2.3);
+    c.reps++;
+    c.due = addDays(t, c.ivl);
+  }
+
+  /* ---------- practice questions ---------- */
+  function optionsFrom(pool, correct, field, count) {
+    var seen = {}, out = [correct];
+    seen[correct[field]] = 1;
+    shuffle(pool).forEach(function (it) {
+      if (out.length >= count) return;
+      if (!seen[it[field]]) { seen[it[field]] = 1; out.push(it); }
+    });
+    return shuffle(out);
+  }
+  function buildPractice(n) {
+    var cur = itemsOf(n), old = learnedItems().filter(function (x) { return x.lesson !== n; });
+    var pool = cur.concat(old);
+    var letters = pool.filter(isLetter), words = pool.filter(function (x) { return !isLetter(x); });
+    var qs = [], flip = false;
+    shuffle(cur).forEach(function (it) {
+      if (isLetter(it)) {
+        var o = optionsFrom(letters, it, 'say', 4);
+        if (o.length > 1) qs.push({ type: 'sound', item: it, opts: o });
+        return;
+      }
+      var opts = optionsFrom(words, it, flip ? 'el' : 'en', 4);
+      if (opts.length > 1) qs.push({ type: flip ? 'greek' : 'mean', item: it, opts: opts });
+      flip = !flip;
+    });
+    // Sentence building from this lesson's longer phrases and its dialogue.
+    var L = LESSONS[n];
+    function buildable(el) { var w = el.split(/\s+/).length; return el.indexOf('/') === -1 && el.indexOf('___') === -1 && w >= 3 && w <= 7; }
+    var sentences = cur.filter(function (x) { return !isLetter(x) && buildable(x.el); }).map(function (x) { return { el: x.el, en: x.en }; })
+      .concat(L.dialogue.lines.filter(function (l) { return buildable(l[1]); }).map(function (l) { return { el: l[1], en: l[2] }; }));
+    shuffle(sentences).slice(0, 2).forEach(function (s) { qs.push({ type: 'build', sentence: s, words: s.el.split(/\s+/) }); });
+    // A few items from earlier lessons.
+    shuffle(old.filter(function (x) { return !isLetter(x); })).slice(0, 3).forEach(function (it) {
+      var o = optionsFrom(words, it, 'en', 4);
+      if (o.length > 1) qs.push({ type: 'mean', item: it, opts: o, old: true });
+    });
+    return qs.slice(0, 14);
+  }
+
+  /* ---------- session ---------- */
+  // Runtime state for the open session: queues and positions inside a block. The block itself is saved.
+  var run = null;
+  function startSession(extra) {
+    var p = P();
+    if (extra) { run = { extra: true, rq: dueCards().slice(0, REVIEW_MAX), shown: false, reviewed: 0 }; go('session'); return; }
+    var next = p.completed + 1;
+    if (!LESSONS[next]) return;
+    if (!p.session || p.session.n !== next) p.session = { n: next, block: 0 };
+    run = { n: next };
+    enterBlock(p.session.block);
+    save();
+    go('session');
+  }
+  function enterBlock(b) {
+    var p = P();
+    p.session.block = b;
+    run.block = b;
+    if (b === 0) {
+      run.rq = dueCards().slice(0, REVIEW_MAX); run.shown = false; run.reviewed = 0;
+      if (!run.rq.length) { setBlocks(1); enterBlock(1); }
+    } else if (b === 1) {
+      run.items = itemsOf(run.n); run.step = 0;
+    } else if (b === 2) {
+      run.qs = buildPractice(run.n); run.qi = 0; run.answer = null; run.built = []; run.right = 0;
+    } else if (b === 3) {
+      run.swap = false;
+    }
+  }
+  function nextBlock() {
+    setBlocks(run.block + 1);
+    if (run.block < 3) enterBlock(run.block + 1);
+    save(); refresh(); window.scrollTo(0, 0);
+  }
+  function finishLesson() {
+    var p = P(), n = run.n, t = today();
+    p.completed = Math.max(p.completed, n);
+    p.finishedOn[n] = t;
+    itemsOf(n).forEach(function (it) { if (!p.cards[it.key]) p.cards[it.key] = { reps: 0, ivl: 0, due: addDays(t, 1) }; });
+    p.session = null; p.aheadOk = 0;
+    setBlocks(BLOCKS.length);
+    markActive();
+    save();
+    run = { finished: n };
+    refresh(); window.scrollTo(0, 0);
+  }
+
+  function stepper() {
+    return '<ol class="stepper">' + BLOCKS.map(function (b, i) {
+      var st = i < run.block ? 'done' : i === run.block ? 'now' : '';
+      return '<li class="' + st + '"><span></span>' + b.label + '</li>';
+    }).join('') + '</ol>';
+  }
+  function sessionTop(title) {
+    return '<div class="sessbar"><button type="button" class="close" data-close="1" aria-label="Close. Your place is saved.">✕</button>' +
+      '<span class="sesstitle">' + esc(title) + '</span></div>';
+  }
+
+  function renderSession() {
+    if (!run) { go('home'); return; }
+    if (run.finished) { renderFinished(); return; }
+    if (run.extra) { renderExtra(); return; }
+    var L = LESSONS[run.n];
+    var head = sessionTop('Lesson ' + L.n + ' · ' + L.title) + stepper();
+    var b = run.block, html;
+    if (b === 0) html = reviewHTML('Review', 'Say the answer aloud before you tap.');
+    else if (b === 1) html = newHTML(L);
+    else if (b === 2) html = practiceHTML();
+    else html = togetherBlockHTML(L);
+    $view.innerHTML = head + html;
+  }
+
+  function answerHTML(it) {
+    var pr = pron(it);
+    return '<div class="answer"><div class="tel">' + esc(pr.te) + '</div><div class="tr">' + esc(pr.tr) + '</div>' +
+      '<div class="en">' + esc(it.en) + '</div>' + (it.tm ? '<div class="te muted">' + esc(it.tm) + '</div>' : '') + '</div>';
+  }
+  function reviewHTML(title, hint) {
+    var it = itemByKey(run.rq[0]);
+    return '<section class="stage">' +
+      '<div class="count">' + title + ' · ' + (run.reviewed + 1) + ' of ' + (run.reviewed + run.rq.length) + '</div>' +
+      '<div class="face"><div class="gr xl" lang="el">' + esc(shown(it)) + '</div>' + speakBtn(it.el, it.en, true) + (run.shown ? answerHTML(it) : '') + '</div>' +
+      (run.shown
+        ? '<div class="two"><button type="button" class="btn again" data-card="0">Again</button><button type="button" class="btn primary" data-card="1">Got it</button></div>'
+        : '<button type="button" class="btn primary wide" data-show="1">Show answer</button>') +
+      '<p class="hint">' + esc(hint) + '</p></section>';
+  }
+
+  function newHTML(L) {
+    var items = run.items;
+    if (run.step < items.length) {
+      var it = items[run.step];
+      return '<section class="stage">' +
+        '<div class="count">New · ' + (run.step + 1) + ' of ' + items.length + '</div>' +
+        '<div class="face"><div class="gr xl" lang="el">' + esc(shown(it)) + '</div>' + speakBtn(it.el, it.en, true) + answerHTML(it) +
+          (it.note ? '<p class="note">' + esc(it.note) + '</p>' : '') + '</div>' +
+        '<div class="two">' + (run.step > 0 ? '<button type="button" class="btn" data-newstep="-1">Back</button>' : '<span></span>') +
+        '<button type="button" class="btn primary" data-newstep="1">Next</button></div>' +
+        '<p class="hint">Listen, then both say it aloud twice.</p></section>';
+    }
+    return '<section class="stage">' + grammarHTML(L.grammar) +
+      '<div class="two"><button type="button" class="btn" data-newstep="-1">Back</button><button type="button" class="btn primary" data-nextblock="1">Start practice</button></div></section>';
+  }
+  function grammarHTML(g) {
+    return '<article class="grammar"><div class="eyebrow">Grammar</div><h2>' + esc(g.title) + '</h2>' +
+      g.body.map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') +
+      (g.ex && g.ex.length ? '<ul class="examples">' + g.ex.map(function (e) {
+        return '<li><div><span class="gr" lang="el">' + esc(e.el) + '</span><span class="tel">' + esc(G.telugu(e.el)) + '</span><span class="muted small">' + esc(e.en) + '</span></div>' + speakBtn(e.el, e.en) + '</li>';
+      }).join('') + '</ul>' : '') +
+      (g.te ? '<p class="compare"><b>Telugu tip</b>' + esc(g.te) + '</p>' : '') +
       '</article>';
   }
 
-  function renderToday() {
-    var p = P(), n = dayNumber(p), si = stageFor(n), st = STAGES[si];
-    var checks = p.checks[today()] || {};
-    var idx = dateIndex();
-    var prompt = D.prompts[idx % D.prompts.length];
-    var phrase = D.phrases[(idx * 7) % D.phrases.length];
-    var due = dueCards().length;
-    var learned = Object.keys(p.cards).length;
-    var doneAll = st.items.every(function (it) { return checks[it.id]; });
-
-    var stageBar = STAGES.map(function (s, i) { return '<span class="' + (i < si ? 'on' : i === si ? 'now' : '') + '"></span>'; }).join('');
-    var items = st.items.map(function (it) {
-      var on = !!checks[it.id];
-      return '<li class="' + (on ? 'done' : '') + '">' +
-        '<input type="checkbox" id="chk-' + it.id + '" data-check="' + it.id + '"' + (on ? ' checked' : '') + '>' +
-        '<label for="chk-' + it.id + '"><b>' + esc(it.label) + '</b><span class="min">' + it.min + ' min</span></label>' +
-        (it.tab !== 'today' ? '<button type="button" class="go" data-tab="' + it.tab + '">Open</button>' : '') +
-        '</li>';
-    }).join('');
-
-    $view.innerHTML =
-      '<section class="hello">' +
-        '<div><div class="eyebrow">Day ' + n + ' · ' + esc(st.name) + '</div><h1>Γεια σου, ' + esc(p.name) + '</h1></div>' +
-        '<div class="stats"><div class="stat"><b>' + streak(p) + '</b><span>day streak</span></div>' +
-        '<div class="stat"><b>' + learned + '</b><span>phrases started</span></div></div>' +
-      '</section>' +
-      '<div class="stage" title="Stages: letters, everyday Greek, Greek + Bible">' + stageBar + '</div>' +
-
-      '<section class="panel stack">' +
-        '<div class="section-title"><h2>Today\'s 30 minutes</h2><span class="muted small">' + (doneAll ? 'Done. Μπράβο!' : 'Tick each part when done') + '</span></div>' +
-        '<ul class="plan">' + items + '</ul>' +
-        (due ? '<p class="small muted" style="margin:0">' + due + ' card' + (due === 1 ? '' : 's') + ' waiting for review.</p>' : '') +
-      '</section>' +
-
-      '<section class="panel talk stack">' +
-        '<div class="eyebrow">Talk together today</div>' +
-        '<p style="margin:0">' + esc(prompt.text) + '</p>' +
-        '<div class="row" style="flex-wrap:nowrap;align-items:flex-start"><div class="say" lang="el" style="flex:1;min-width:0">' + esc(prompt.el) + '</div>' + speakBtn(prompt.el, prompt.en) + '</div>' +
-        '<p class="small muted" style="margin:0">' + esc(prompt.en) + '</p>' +
-      '</section>' +
-
-      togetherHTML() +
-      '<section class="stack"><div class="eyebrow">Phrase of the day</div>' + phraseHTML(phrase) + '</section>' +
-      (si < 2 ? '<p class="small muted">From day 181 your daily plan adds a Bible verse. You can open the Bible tab any time before that.</p>' : '');
-  }
-
-  function personRow(m, isMe) {
-    var t = today();
-    var fresh = m.date === t || m.date === addDays(t, -1);
-    var st = fresh ? m.streak : 0;
-    var doneToday = m.date === t ? m.done : 0;
-    var total = m.total || 3;
-    var dots = '';
-    for (var i = 0; i < total; i++) dots += '<span class="' + (i < doneToday ? 'on' : '') + '"></span>';
-    return '<div class="person">' +
-      '<div class="pname">' + esc(m.name) + (isMe ? ' <span class="muted small">(you)</span>' : '') + '<div class="muted small">Day ' + esc(m.day) + ' · ' + esc(m.started) + ' phrases</div></div>' +
-      '<div class="pdots" title="' + doneToday + ' of ' + total + ' parts done today">' + dots + '</div>' +
-      '<div class="pstreak"><b>' + st + '</b><span>streak</span></div>' +
-    '</div>';
-  }
-  function togetherHTML() {
-    if (!S.couple) {
-      return '<section class="panel together stack"><div class="eyebrow">Together</div>' +
-        '<p style="margin:0" class="small">Connect with your spouse to see each other\'s streak and today\'s progress.</p>' +
-        '<button type="button" class="btn" data-go="settings">Connect</button></section>';
+  function practiceHTML() {
+    var q = run.qs[run.qi];
+    if (!q) {
+      return '<section class="stage"><div class="face"><div class="gr xl" lang="el">Μπράβο!</div>' +
+        '<p>' + run.right + ' right on the first try.</p></div>' +
+        '<button type="button" class="btn primary wide" data-nextblock="1">Go to Together</button></section>';
     }
-    var me = summary();
-    var others = remote.members.filter(function (m) { return m.uid !== remote.uid; })
-      .sort(function (a, b) { return (b.updated || 0) - (a.updated || 0); }).slice(0, 1);
-    var body = personRow(me, true);
-    if (others.length) body += personRow(others[0], false);
-    else if (remote.status === 'on') body += '<p class="small muted" style="margin:0">Waiting for your spouse to join with your couple code.</p>';
-    var status = remote.status === 'on' ? '' :
-      remote.status === 'error' ? '<p class="small" style="margin:0;color:var(--rose)">Can\'t reach the shared progress right now. It will update when you\'re back online.</p>' :
-      remote.status === 'unavailable' ? '<p class="small muted" style="margin:0">Sync works in the Mazí app from your GitHub link, not in this preview.</p>' :
-      '<p class="small muted" style="margin:0">Connecting…</p>';
-    return '<section class="panel together stack"><div class="eyebrow">Together</div>' + body + status + '</section>';
-  }
-
-  /* ---------- phrases ---------- */
-  var phraseCat = 'greet';
-  function renderPhrases() {
-    var chips = D.categories.map(function (c) {
-      return '<button type="button" class="chip" data-cat="' + c.id + '" aria-pressed="' + (c.id === phraseCat) + '">' + esc(c.label) + '</button>';
-    }).join('');
-    var list = D.phrases.filter(function (x) { return x.cat === phraseCat; }).map(phraseHTML).join('');
-    $view.innerHTML =
-      '<div class="section-title"><h2>Phrases for us</h2><span class="muted small">' + D.phrases.length + ' phrases</span></div>' +
-      '<p class="small muted" style="margin:-8px 0 0">Blue Telugu letters show how to say it. A long vowel (ా ీ ూ ే ో) is the stressed syllable.</p>' +
-      '<div class="chips" role="group" aria-label="Topics">' + chips + '</div>' +
-      '<div class="list">' + list + '</div>';
-  }
-
-  /* ---------- flashcards (spaced repetition) ---------- */
-  function dueCards() {
-    var p = P(), t = today();
-    return D.phrases.filter(function (x) { var c = p.cards[x.id]; return c && c.due <= t; });
-  }
-  function newToday() { return P().newLog[today()] || 0; }
-  function newCards() {
-    var p = P(), left = Math.max(0, NEW_PER_DAY - newToday());
-    return D.phrases.filter(function (x) { return !p.cards[x.id]; }).slice(0, left);
-  }
-  var session = null; // { queue: [ids], shown: bool }
-  function startSession() {
-    var ids = dueCards().map(function (x) { return x.id; }).concat(newCards().map(function (x) { return x.id; }));
-    session = { queue: ids, shown: false, total: ids.length, done: 0 };
-  }
-  function grade(id, g) {
-    var p = P(), t = today();
-    var c = p.cards[id];
-    if (!c) { c = { reps: 0, ease: 2.5, ivl: 0, due: t }; p.cards[id] = c; p.newLog[t] = (p.newLog[t] || 0) + 1; }
-    if (g === 0) {
-      c.reps = 0; c.ivl = 0; c.ease = Math.max(1.3, c.ease - 0.2); c.due = t;
-      session.queue.push(id);
+    var head = '<div class="count">Practice · ' + (run.qi + 1) + ' of ' + run.qs.length + (q.old ? ' · from an earlier lesson' : '') + '</div>';
+    var body;
+    if (q.type === 'build') {
+      if (!q.order) q.order = shuffle(q.words.map(function (w, i) { return i; }));
+      var used = run.built;
+      body = '<p class="ask">Build this sentence in Greek</p><p class="prompt">' + esc(q.sentence.en) + '</p>' +
+        '<div class="built" aria-live="polite">' + (used.length ? used.map(function (i) { return '<span class="tile placed" lang="el">' + esc(q.words[i]) + '</span>'; }).join('') : '<span class="muted small">Tap the words in order</span>') + '</div>' +
+        '<div class="tiles">' + q.order.map(function (i) {
+          var on = used.indexOf(i) !== -1;
+          return '<button type="button" class="tile" lang="el" data-tile="' + i + '"' + (on || run.answer ? ' disabled' : '') + '>' + esc(q.words[i]) + '</button>';
+        }).join('') + '</div>' +
+        (run.answer ? '' : '<div class="two"><button type="button" class="btn" data-clear="1">Clear</button><button type="button" class="btn primary" data-check="1"' + (used.length === q.words.length ? '' : ' disabled') + '>Check</button></div>');
     } else {
-      if (c.reps === 0) c.ivl = g === 3 ? 3 : 1;
-      else if (c.reps === 1) c.ivl = g === 1 ? 2 : g === 2 ? 3 : 6;
-      else c.ivl = Math.max(c.ivl + 1, Math.round(c.ivl * (g === 1 ? 1.2 : g === 2 ? c.ease : c.ease * 1.3)));
-      c.ease = Math.max(1.3, c.ease + (g === 1 ? -0.15 : g === 3 ? 0.15 : 0));
-      c.reps++; c.due = addDays(t, c.ivl);
-      session.done++;
+      var it = q.item, field = q.type === 'greek' ? 'el' : q.type === 'sound' ? 'say' : 'en';
+      var ask = q.type === 'sound' ? 'What sound does this make?' : q.type === 'greek' ? 'Which is the Greek for' : 'What does this mean?';
+      var prompt = q.type === 'greek' ? '<p class="prompt">' + esc(it.en) + '</p>'
+        : '<div class="promptgr"><span class="gr xl" lang="el">' + esc(shown(it)) + '</span>' + speakBtn(it.el, it.en) + '</div>';
+      body = '<p class="ask">' + ask + '</p>' + prompt + '<div class="options">' + q.opts.map(function (o) {
+        var cls = '';
+        if (run.answer) { if (o[field] === it[field]) cls = ' right'; else if (o[field] === run.answer) cls = ' wrong'; }
+        return '<button type="button" class="opt' + cls + '"' + (field === 'el' ? ' lang="el"' : '') + ' data-opt="' + esc(o[field]) + '"' + (run.answer ? ' disabled' : '') + '>' + esc(o[field]) + '</button>';
+      }).join('') + '</div>';
     }
-    // Keep the newLog small.
-    Object.keys(p.newLog).forEach(function (k) { if (diffDays(k, t) > 3) delete p.newLog[k]; });
-    session.queue.shift();
-    session.shown = false;
-    markActive();
-    if (!session.queue.length) {
-      var ch = p.checks[t] || (p.checks[t] = {});
-      ch.cards = true; save();
+    var fb = '';
+    if (run.answer) {
+      var ok = run.correct;
+      var el = q.type === 'build' ? q.sentence.el : q.item.el;
+      var tel = q.type === 'build' ? G.telugu(el) : pron(q.item).te;
+      fb = '<div class="feedback ' + (ok ? 'ok' : 'no') + '"><b>' + (ok ? 'Σωστά! Correct.' : 'Not quite.') + '</b>' +
+        '<div><span class="gr" lang="el">' + esc(q.type === 'build' ? el : shown(q.item)) + '</span> <span class="tel">' + esc(tel) + '</span></div>' +
+        '<div class="muted small">' + esc(q.type === 'build' ? q.sentence.en : q.item.en) + (ok ? '' : ' · You\'ll see this one again.') + '</div>' +
+        '<button type="button" class="btn primary wide" data-nextq="1">Continue</button></div>';
     }
+    return '<section class="stage">' + head + body + fb + '</section>';
   }
-  function nextLabel(id, g) {
-    var c = P().cards[id];
-    if (g === 0) return 'again';
-    var ivl;
-    if (!c || c.reps === 0) ivl = g === 3 ? 3 : 1;
-    else if (c.reps === 1) ivl = g === 1 ? 2 : g === 2 ? 3 : 6;
-    else ivl = Math.max(c.ivl + 1, Math.round(c.ivl * (g === 1 ? 1.2 : g === 2 ? c.ease : c.ease * 1.3)));
-    return ivl + 'd';
+  function answerPractice(value) {
+    var q = run.qs[run.qi], correct;
+    if (q.type === 'build') correct = run.built.map(function (i) { return q.words[i]; }).join(' ') === q.words.join(' ');
+    else correct = value === q.item[q.type === 'greek' ? 'el' : q.type === 'sound' ? 'say' : 'en'];
+    run.answer = value || 'built'; run.correct = correct;
+    if (correct && !q.again) run.right++;
+    if (!correct && !q.again) run.qs.push(Object.assign({}, q, { again: true, order: null }));
+    say(q.type === 'build' ? q.sentence.el : q.item.el);
   }
-  function renderCards() {
-    if (!session) startSession();
-    var due = dueCards().length, fresh = newCards().length, total = Object.keys(P().cards).length;
-    var head =
-      '<div class="section-title"><h2>Cards</h2>' +
-        '<div class="switch">Show first <div class="seg" role="group" aria-label="Card front">' +
-          '<button type="button" data-front="el" aria-pressed="' + (S.front === 'el') + '">Greek</button>' +
-          '<button type="button" data-front="en" aria-pressed="' + (S.front === 'en') + '">English</button></div></div></div>' +
-      '<div class="deckbar">' +
-        '<div class="count"><b>' + due + '</b><span>Due</span></div>' +
-        '<div class="count"><b>' + fresh + '</b><span>New today</span></div>' +
-        '<div class="count"><b>' + total + ' / ' + D.phrases.length + '</b><span>Started</span></div>' +
-      '</div>';
 
-    if (!session.queue.length) {
-      $view.innerHTML = head +
-        '<section class="panel flash"><div class="big" lang="el">Μπράβο!</div>' +
-        '<p style="margin:0">' + (total ? 'All cards are done for today. Come back tomorrow for the next ones.' : 'No cards yet.') + '</p>' +
-        '<p class="small muted" style="margin:0">You get up to ' + NEW_PER_DAY + ' new phrases a day. Cards come back just before you would forget them.</p>' +
-        '<button type="button" class="btn" data-tab="phrases">Browse all phrases</button></section>';
+  function dialogueLines(lines, names, me) {
+    return lines.map(function (ln) {
+      var who = names ? names[ln[0]] : ln[0];
+      var cls = names ? (who === me ? 'mine' : 'theirs') : '';
+      return '<li class="' + cls + '"><span class="who">' + esc(who) + '</span>' +
+        '<div class="line"><span class="gr" lang="el">' + esc(ln[1].replace(/___/g, '(your name)')) + '</span>' +
+        '<span class="tel">' + esc(G.telugu(ln[1].replace(/___/g, '…'))) + '</span>' +
+        '<span class="muted small">' + esc(ln[2]) + '</span></div>' + speakBtn(ln[1], ln[2]) + '</li>';
+    }).join('');
+  }
+  function togetherBlockHTML(L) {
+    var me = P().name, other = partnerName();
+    var names = run.swap ? { A: other, B: me } : { A: me, B: other };
+    return '<section class="stage">' +
+      '<div class="eyebrow">Together · ' + esc(L.dialogue.title) + '</div>' +
+      '<p class="muted small">Sit together and read it aloud. Then swap roles and read it again.</p>' +
+      '<ol class="dialogue">' + dialogueLines(L.dialogue.lines, names, me) + '</ol>' +
+      '<button type="button" class="btn wide" data-swap="1">Swap roles</button>' +
+      (L.dialogue.tip ? '<p class="note">' + esc(L.dialogue.tip) + '</p>' : '') +
+      '<button type="button" class="btn primary wide" data-finish="1">We said it together ✓</button></section>';
+  }
+
+  function renderFinished() {
+    var n = run.finished, L = LESSONS[n], p = P(), m = partner();
+    var partnerLine = '';
+    if (S.couple && m) {
+      partnerLine = (m.day || 0) >= n ? '<p>' + esc(m.name) + ' has finished this lesson too.</p>'
+        : '<p class="muted">' + esc(m.name) + ' hasn\'t finished lesson ' + n + ' yet.</p>';
+    }
+    $view.innerHTML = '<section class="stage finish">' +
+      '<div class="eyebrow">Lesson ' + n + ' complete</div>' +
+      '<div class="gr xl" lang="el">Μπράβο!</div>' +
+      '<p><b>' + esc(L.title) + '</b> · ' + L.items.length + ' new cards for your reviews.</p>' +
+      '<div class="bigstat"><b>' + streak(p) + '</b><span>day streak</span></div>' + partnerLine +
+      '<button type="button" class="btn primary wide" data-home="1">Done for today</button>' +
+      '<button type="button" class="linkish center" data-note="' + n + '">Look over this lesson again ›</button></section>';
+  }
+
+  function renderExtra() {
+    if (!run.rq.length) {
+      markActive(); save();
+      $view.innerHTML = sessionTop('Extra review') + '<section class="stage finish"><div class="gr xl" lang="el">Μπράβο!</div>' +
+        '<p>' + run.reviewed + ' cards reviewed.</p><button type="button" class="btn primary wide" data-home="1">Back home</button></section>';
       return;
     }
-
-    var id = session.queue[0], ph = phraseById(id);
-    var isNew = !P().cards[id];
-    var front = S.front === 'el'
-      ? '<div class="big" lang="el">' + esc(ph.el) + '</div>' + speakBtn(ph.el, ph.en)
-      : '<div class="big en">' + esc(ph.en) + '</div><div class="te muted">' + esc(ph.tm) + '</div>';
-    var back = S.front === 'el'
-      ? '<div class="tel">' + esc(ph.te) + '</div><div class="muted small">' + esc(ph.tr) + '</div><div style="font-weight:600;font-size:19px">' + esc(ph.en) + '</div><div class="te muted">' + esc(ph.tm) + '</div>'
-      : '<div class="big" lang="el">' + esc(ph.el) + '</div>' + speakBtn(ph.el, ph.en) + '<div class="tel">' + esc(ph.te) + '</div><div class="muted small">' + esc(ph.tr) + '</div>';
-
-    $view.innerHTML = head +
-      '<section class="panel flash" aria-live="polite">' +
-        '<div class="eyebrow">' + (isNew ? 'New phrase' : 'Review') + ' · ' + (session.done + 1) + ' of ' + Math.max(session.total, session.done + session.queue.length) + '</div>' +
-        front +
-        (session.shown ? '<div class="answer">' + back + (ph.note ? '<div class="note" style="text-align:left">' + esc(ph.note) + '</div>' : '') + '</div>' : '') +
-      '</section>' +
-      (session.shown
-        ? '<div class="grades">' +
-            '<button type="button" class="btn again" data-grade="0">Again<small>' + nextLabel(id, 0) + '</small></button>' +
-            '<button type="button" class="btn" data-grade="1">Hard<small>' + nextLabel(id, 1) + '</small></button>' +
-            '<button type="button" class="btn good" data-grade="2">Good<small>' + nextLabel(id, 2) + '</small></button>' +
-            '<button type="button" class="btn" data-grade="3">Easy<small>' + nextLabel(id, 3) + '</small></button>' +
-          '</div>'
-        : '<button type="button" class="btn primary" data-reveal="1" style="width:100%">Show answer</button>') +
-      '<p class="small muted" style="margin:0">Say the answer out loud before you tap. If you are learning together, quiz each other.</p>';
+    $view.innerHTML = sessionTop('Extra review') + reviewHTML('Review', 'Cards come back just before you would forget them.');
   }
 
-  /* ---------- alphabet ---------- */
-  var letterIdx = 0, quiz = null;
-  function newQuiz() {
-    var i = Math.floor(Math.random() * D.alphabet.length), L = D.alphabet[i];
-    var pool = [];
-    D.alphabet.forEach(function (x) { if (x.sound !== L.sound && pool.indexOf(x.sound) === -1) pool.push(x.sound); });
-    pool.sort(function () { return Math.random() - 0.5; });
-    var opts = pool.slice(0, 3).concat([L.sound]).sort(function () { return Math.random() - 0.5; });
-    var upper = Math.random() < 0.35;
-    quiz = { i: i, glyph: upper ? L.up : L.lo.split(' ')[0], opts: opts, picked: null, score: quiz ? quiz.score : 0, tries: quiz ? quiz.tries : 0 };
+  /* ---------- lessons list and notebooks ---------- */
+  function renderCourse() {
+    var p = P(), next = p.completed + 1;
+    var html = '<div class="pagehead"><h1>Lessons</h1><p class="muted">' + p.completed + ' finished · Tap a finished lesson to look over it again.</p></div>';
+    C.phases.forEach(function (ph) {
+      var units = C.units.filter(function (u) { return u.phase === ph.n; });
+      html += '<section class="phase"><div class="eyebrow">Phase ' + ph.n + ' · ' + esc(ph.span) + '</div><h2>' + esc(ph.title) + '</h2><p class="muted small">' + esc(ph.goal) + '</p>';
+      units.forEach(function (u) {
+        if (u.soon) { html += '<div class="unit soon"><h3>' + esc(u.title) + ' <span class="muted small">' + u.from + '–' + u.to + ' · coming soon</span></h3></div>'; return; }
+        html += '<div class="unit"><h3>' + esc(u.title) + ' <span class="muted small">' + u.from + '–' + u.to + '</span></h3>';
+        html += '<ol class="lessons">';
+        for (var n = u.from; n <= u.to; n++) {
+          var L = LESSONS[n]; if (!L) continue;
+          var state = n <= p.completed ? 'done' : n === next ? 'next' : 'locked';
+          var inner = '<span class="num">' + (state === 'done' ? '✓' : n) + '</span><span class="lt">' + esc(L.title) + '</span>' +
+            (state === 'next' ? '<span class="badge">Next</span>' : state === 'done' ? '<span class="chev">›</span>' : '');
+          html += '<li class="' + state + '">' + (state === 'done'
+            ? '<button type="button" data-note="' + n + '">' + inner + '</button>'
+            : state === 'next' ? '<button type="button" data-tab="home">' + inner + '</button>'
+            : '<div>' + inner + '</div>') + '</li>';
+        }
+        html += '</ol></div>';
+      });
+      html += '</section>';
+    });
+    $view.innerHTML = html;
   }
-  function renderAlphabet() {
-    if (!quiz) newQuiz();
-    var L = D.alphabet[letterIdx];
-    var grid = D.alphabet.map(function (x, i) {
-      return '<button type="button" class="letter" data-letter="' + i + '" aria-pressed="' + (i === letterIdx) + '" aria-label="' + esc(x.name) + '"><span class="l" lang="el">' + esc(x.up + x.lo.split(' ')[0]) + '</span><span class="s">' + esc(x.sound) + '</span></button>';
-    }).join('');
-    var combos = D.combos.map(function (c) {
-      return '<tr><td><span class="gr" lang="el">' + esc(c.g) + '</span></td><td>' + esc(c.sound) + ' <span class="te muted">' + esc(c.te) + '</span></td><td><span lang="el">' + esc(c.ex) + '</span><div class="wnote">' + esc(c.exTr) + ' · ' + esc(c.en) + '</div></td></tr>';
-    }).join('');
-    var Q = D.alphabet[quiz.i];
-    var opts = quiz.opts.map(function (o) {
-      var cls = '';
-      if (quiz.picked) { if (o === Q.sound) cls = ' right'; else if (o === quiz.picked) cls = ' wrong'; }
-      return '<button type="button" class="btn' + cls + '" data-opt="' + esc(o) + '"' + (quiz.picked ? ' disabled' : '') + '>' + esc(o) + '</button>';
-    }).join('');
 
+  var noteN = 1;
+  function renderNotebook() {
+    var L = LESSONS[noteN];
+    if (!L || noteN > P().completed) { go('course'); return; }
+    var items = itemsOf(noteN).map(function (it) {
+      var pr = pron(it);
+      return '<li><div class="it"><span class="gr" lang="el">' + esc(shown(it)) + '</span>' +
+        '<span class="pron"><span class="tel">' + esc(pr.te) + '</span> <span class="tr">' + esc(pr.tr) + '</span></span>' +
+        '<span>' + esc(it.en) + (it.tm ? ' · <span class="te muted">' + esc(it.tm) + '</span>' : '') + '</span>' +
+        (it.note ? '<span class="note">' + esc(it.note) + '</span>' : '') + '</div>' + speakBtn(it.el, it.en) + '</li>';
+    }).join('');
     $view.innerHTML =
-      '<div class="section-title"><h2>The Greek letters</h2><span class="muted small">24 letters</span></div>' +
-      '<div class="letters">' + grid + '</div>' +
-      '<section class="panel detail">' +
-        '<div class="glyph" lang="el">' + esc(L.up + ' ' + L.lo) + '</div>' +
-        '<h3>' + esc(L.name) + '</h3>' +
-        '<div class="soundline"><b>' + esc(L.sound) + '</b><span class="te">' + esc(L.te) + '</span></div>' +
-        '<div></div>' +
-        '<p class="tip small" style="margin:0">' + esc(L.tip) + '</p>' +
-        '<div class="example"><span class="gr" lang="el">' + esc(L.ex.el) + '</span><span class="tel te" style="color:var(--accent)">' + esc(L.ex.te) + '</span><span class="muted small" style="flex:1">' + esc(L.ex.en) + '</span>' + speakBtn(L.ex.el, L.ex.en) + '</div>' +
-      '</section>' +
-
-      '<section class="panel stack quiz">' +
-        '<div class="section-title"><h2>Quick quiz</h2><span class="muted small">' + quiz.score + ' / ' + quiz.tries + ' right</span></div>' +
-        '<p class="small muted" style="margin:0">What sound does this letter make?</p>' +
-        '<div class="q" lang="el">' + esc(quiz.glyph) + '</div>' +
-        '<div class="options">' + opts + '</div>' +
-        (quiz.picked ? '<button type="button" class="btn primary" data-nextq="1">Next letter</button>' : '') +
-      '</section>' +
-
-      '<section class="panel stack">' +
-        '<div class="section-title"><h2>Letter pairs</h2></div>' +
-        '<p class="small muted" style="margin:0">Two letters that make one sound. Learn these after the single letters.</p>' +
-        '<div class="tablewrap"><table><thead><tr><th>Pair</th><th>Sound</th><th>Example</th></tr></thead><tbody>' + combos + '</tbody></table></div>' +
-      '</section>' +
-      '<p class="small muted">Stress: every Greek word of two or more syllables has an accent mark (ά έ ή ί ό ύ ώ). Say that syllable a little louder.</p>';
-  }
-
-  /* ---------- bible ---------- */
-  var verseIdx = null;
-  function renderBible() {
-    if (verseIdx === null) verseIdx = dateIndex() % D.verses.length;
-    var V = D.verses[verseIdx];
-    var options = D.verses.map(function (v, i) { return '<option value="' + i + '"' + (i === verseIdx ? ' selected' : '') + '>' + esc(v.ref) + (i === dateIndex() % D.verses.length ? ' (today)' : '') + '</option>'; }).join('');
-    var rows = V.words.map(function (w) {
-      return '<tr><td>' + esc(w.g) + '</td><td>' + esc(w.en) + '<div class="te muted small">' + esc(w.te) + '</div>' + (w.note ? '<div class="wnote">' + esc(w.note) + '</div>' : '') + '</td>' +
-        '<td>' + (w.kind === 'same' ? '<span class="tag same">Same today</span>' : '<span class="tag old">Old form</span>') + '<div class="now" lang="el">' + esc(w.now) + '</div></td></tr>';
-    }).join('');
-
-    $view.innerHTML =
-      '<div class="section-title"><h2>Bible Greek</h2><span class="muted small">Koine, read with modern sounds</span></div>' +
-      '<div class="versenav">' +
-        '<button type="button" class="btn" data-verse="-1" aria-label="Previous verse">‹</button>' +
-        '<select id="verse-pick" data-verse-pick="1" aria-label="Choose a verse">' + options + '</select>' +
-        '<button type="button" class="btn" data-verse="1" aria-label="Next verse">›</button>' +
-      '</div>' +
-      '<section class="panel verse stack">' +
-        '<div class="row" style="justify-content:space-between;flex-wrap:nowrap"><span class="ref">' + esc(V.ref) + '</span>' + speakBtn(V.koine, V.ref) + '</div>' +
-        '<div class="koine" lang="grc">' + esc(V.koine) + '</div>' +
-        '<div class="tr">' + esc(V.tr) + '</div>' +
-      '</section>' +
-      '<section class="panel"><dl class="trans" style="margin:0">' +
-        '<div><dt>Modern</dt><dd class="mg" lang="el">' + esc(V.mg) + '</dd></div>' +
-        '<div><dt>English</dt><dd>' + esc(V.en) + '</dd></div>' +
-        '<div><dt>Telugu</dt><dd class="te">' + esc(V.te) + '</dd></div>' +
-      '</dl></section>' +
-      '<section class="panel stack">' +
-        '<div class="section-title"><h2>Word by word</h2></div>' +
-        '<div class="legend"><span class="tag same">Same today</span> still used in Modern Greek <span class="tag old">Old form</span> today\'s word shown below it</div>' +
-        '<div class="tablewrap"><table class="words"><thead><tr><th>Koine</th><th>Meaning</th><th>Today</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
-      '</section>' +
-      '<p class="small muted">The Modern Greek and Telugu lines are simple renderings to help you understand, not quotes from a printed Bible.</p>';
+      '<button type="button" class="linkish" data-tab="course">‹ All lessons</button>' +
+      '<div class="pagehead"><div class="eyebrow">' + esc(lessonLabel(noteN)) + '</div><h1>' + esc(L.title) + '</h1><p class="muted">' + esc(L.goal) + '</p></div>' +
+      '<section class="panel"><h2>Words and phrases</h2><ul class="notelist">' + items + '</ul></section>' +
+      '<section class="panel">' + grammarHTML(L.grammar) + '</section>' +
+      '<section class="panel"><h2>Dialogue · ' + esc(L.dialogue.title) + '</h2><ol class="dialogue">' + dialogueLines(L.dialogue.lines, null) + '</ol></section>' +
+      '<div class="two">' + (noteN > 1 ? '<button type="button" class="btn" data-note="' + (noteN - 1) + '">‹ Lesson ' + (noteN - 1) + '</button>' : '<span></span>') +
+      (noteN < P().completed ? '<button type="button" class="btn" data-note="' + (noteN + 1) + '">Lesson ' + (noteN + 1) + ' ›</button>' : '<span></span>') + '</div>';
   }
 
   /* ---------- settings ---------- */
-  var resetArmed = null;
+  var resetArmed = false, leaveArmed = false;
   function renderSettings() {
-    var a = S.profiles.a, b = S.profiles.b;
-    function block(k, p) {
-      var armed = resetArmed === k;
-      return '<section class="panel stack">' +
-        '<div class="field"><label for="name-' + k + '">Name</label><input id="name-' + k + '" data-name="' + k + '" maxlength="24" value="' + esc(p.name) + '"></div>' +
-        '<div class="field"><label for="start-' + k + '">Start date (day 1)</label><input id="start-' + k + '" type="date" data-start="' + k + '" value="' + esc(p.start) + '" max="' + today() + '"></div>' +
-        '<p class="small muted" style="margin:0">Day ' + dayNumber(p) + ' · ' + Object.keys(p.cards).length + ' phrases started · streak ' + streak(p) + '</p>' +
-        '<button type="button" class="btn danger' + (armed ? ' armed' : '') + '" data-reset="' + k + '">' + (armed ? 'Tap again to erase ' + esc(p.name) + '\'s progress' : 'Reset progress') + '</button>' +
-      '</section>';
-    }
+    var a = S.profiles.a, b = S.profiles.b, p = P();
     $view.innerHTML =
-      '<div class="section-title"><h2>Names and settings</h2><button type="button" class="btn quiet" data-tab="today">Done</button></div>' +
-      '<section class="panel"><div class="switch" style="justify-content:space-between;flex-wrap:wrap">Appearance <div class="seg" role="group" aria-label="Appearance">' +
-        ['system', 'light', 'dark'].map(function (m) {
-          var on = (S.theme || 'system') === m;
-          return '<button type="button" data-theme-pick="' + m + '" aria-pressed="' + on + '">' + (m === 'system' ? 'Phone setting' : m === 'light' ? 'Light' : 'Dark') + '</button>';
-        }).join('') +
-      '</div></div></section>' +
+      '<div class="pagehead row-between"><h1>Settings</h1><button type="button" class="btn" data-tab="home">Done</button></div>' +
       '<section class="panel stack">' +
-        '<div class="switch" style="justify-content:space-between;flex-wrap:wrap">This phone is for <div class="seg" role="group" aria-label="This phone is for">' +
+        '<div class="setrow"><span>Appearance</span><div class="seg" role="group" aria-label="Appearance">' +
+          ['system', 'light', 'dark'].map(function (m) {
+            return '<button type="button" data-theme-pick="' + m + '" aria-pressed="' + ((S.theme || 'system') === m) + '">' + (m === 'system' ? 'Phone' : m === 'light' ? 'Light' : 'Dark') + '</button>';
+          }).join('') + '</div></div>' +
+        '<div class="setrow"><span>This phone is for</span><div class="seg" role="group" aria-label="This phone is for">' +
           '<button type="button" data-who="a" aria-pressed="' + (S.who === 'a') + '">' + esc(a.name) + '</button>' +
           '<button type="button" data-who="b" aria-pressed="' + (S.who === 'b') + '">' + esc(b.name) + '</button></div></div>' +
-        '<p class="small muted" style="margin:0">Progress is saved on this phone only. Each of you keeps your own streak and cards on your own phone. The daily talk prompt and verse are the same on both phones, so you can do them together.</p>' +
+        '<div class="grid2">' +
+          '<div class="field"><label for="name-a">Name</label><input id="name-a" data-name="a" maxlength="24" value="' + esc(a.name) + '"></div>' +
+          '<div class="field"><label for="name-b">Spouse\'s name</label><input id="name-b" data-name="b" maxlength="24" value="' + esc(b.name) + '"></div>' +
+        '</div>' +
       '</section>' +
-      coupleHTML() +
-      '<div class="grid2">' + block('a', a) + block('b', b) + '</div>' +
-      installHelp();
+      coupleHTML() + installHelp() +
+      '<section class="panel stack"><h2>Progress</h2><p class="small muted" style="margin:0">' + esc(p.name) + ': ' + p.completed + ' lessons finished · ' + Object.keys(p.cards).length + ' cards · ' + streak(p) + '-day streak.</p>' +
+        '<button type="button" class="btn danger' + (resetArmed ? ' armed' : '') + '" data-reset="1">' + (resetArmed ? 'Tap again to erase ' + esc(p.name) + '\'s progress' : 'Start the course over') + '</button></section>';
   }
-
-  var leaveArmed = false;
   function coupleHTML() {
-    var head = '<div class="section-title"><h2>Together</h2></div>';
+    var head = '<h2>Together</h2>';
     if (!window.MaziSync && remote.status === 'unavailable') {
-      return '<section class="panel stack">' + head + '<p class="small muted" style="margin:0">Sync works in the Mazí app from your GitHub link. Open it there to connect with your spouse.</p></section>';
+      return '<section class="panel stack">' + head + '<p class="small muted" style="margin:0">Sync works in the Mazí app from your GitHub link.</p></section>';
     }
     if (S.couple) {
       var setup = /^auth\/|permission-denied|unauthorized/.test(remote.error || '');
       var st = remote.status === 'on' ? 'Connected' : remote.status === 'error' ? (setup ? 'Firebase setup needs attention' : 'Offline, will retry') : 'Connecting…';
       return '<section class="panel stack">' + head +
         '<p class="small" style="margin:0"><b>' + st + '.</b> Your couple code:</p>' +
-        '<div class="row" style="flex-wrap:nowrap"><code class="code" id="couple-code">' + esc(S.couple) + '</code><button type="button" class="btn" data-copy="1">Copy</button></div>' +
-        '<p class="small muted" style="margin:0">Your spouse enters this code in Settings › Together on their phone. Keep it between the two of you, like a password.</p>' +
-        '<button type="button" class="btn danger' + (leaveArmed ? ' armed' : '') + '" data-leave="1">' + (leaveArmed ? 'Tap again to disconnect this phone' : 'Disconnect this phone') + '</button>' +
-        (remote.error ? '<p class="small muted" style="margin:0">Details: ' + esc(remote.error) + '</p>' : '') +
+        '<div class="row"><code class="code" id="couple-code">' + esc(S.couple) + '</code><button type="button" class="btn" data-copy="1">Copy</button></div>' +
+        '<p class="small muted" style="margin:0">Your spouse enters this code on their phone. Keep it between the two of you.</p>' +
         (remote.status === 'error' ? '<button type="button" class="btn" data-retry="1">Try again</button>' : '') +
+        (remote.error ? '<p class="small muted" style="margin:0">Details: ' + esc(remote.error) + '</p>' : '') +
+        '<button type="button" class="btn danger' + (leaveArmed ? ' armed' : '') + '" data-leave="1">' + (leaveArmed ? 'Tap again to disconnect' : 'Disconnect this phone') + '</button>' +
       '</section>';
     }
     return '<section class="panel stack">' + head +
-      '<p class="small" style="margin:0">See each other\'s streak and today\'s progress. One of you creates a code; the other enters it.</p>' +
+      '<p class="small" style="margin:0">See each other\'s progress and take each lesson together. One of you creates a code; the other enters it.</p>' +
       '<button type="button" class="btn primary" data-create="1">Create a couple code</button>' +
-      '<form class="stack" id="join-form" style="gap:8px">' +
+      '<form class="stack" id="join-form">' +
         '<div class="field"><label for="join-code">Or enter your spouse\'s code</label><input id="join-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX"></div>' +
         '<button type="submit" class="btn">Join</button>' +
-      '</form>' +
-    '</section>';
+      '</form></section>';
   }
-
   function installHelp() {
-    return '<section class="panel stack">' +
-      '<div class="section-title"><h2>Put Mazí on your home screen</h2></div>' +
-      '<div class="stack small">' +
-        '<div><b>iPhone</b> · Open the link in Safari, tap the Share button (square with an arrow), then <b>Add to Home Screen</b>.</div>' +
-        '<div><b>Android</b> · Open the link in Chrome, tap the ⋮ menu, then <b>Add to Home screen</b> or <b>Install app</b>.</div>' +
-        '<div class="muted">Always open Mazí from the home screen icon. On iPhone, the icon and Safari keep separate progress.</div>' +
-        '<div class="muted"><b>No sound?</b> iPhone: Settings › Accessibility › Spoken Content › Voices › Greek. Android: Settings › Text-to-speech › Speech Services by Google › Install voice data › Greek.</div>' +
+    return '<section class="panel stack"><h2>Home screen and sound</h2><div class="stack small">' +
+      '<div><b>iPhone</b> · In Safari, tap Share, then <b>Add to Home Screen</b>.</div>' +
+      '<div><b>Android</b> · In Chrome, tap ⋮, then <b>Add to Home screen</b> or <b>Install app</b>.</div>' +
+      '<div class="muted">Always open Mazí from the icon. On iPhone, the icon and Safari keep separate progress.</div>' +
+      '<div class="muted"><b>No sound?</b> iPhone: Settings › Accessibility › Spoken Content › Voices › Greek. Android: Settings › Text-to-speech › Speech Services by Google › Install voice data › Greek.</div>' +
       '</div></section>';
   }
 
   /* ---------- first run ---------- */
   function renderWelcome() {
     $view.innerHTML =
-      '<section class="stack">' +
-        '<div class="eyebrow">Καλώς ήρθες · Welcome</div>' +
-        '<h1 style="font-size:28px">Who is learning on this phone?</h1>' +
-        '<p class="muted" style="margin:0">You each use Mazí on your own phone. Your progress stays on this phone, and the daily talk prompt is the same for both of you.</p>' +
-      '</section>' +
+      '<section class="hero"><div class="eyebrow" lang="el">Καλώς ήρθες · Welcome</div>' +
+        '<h1>Who is learning on this phone?</h1>' +
+        '<p class="muted">You each use Mazí on your own phone and take one lesson a day, together.</p></section>' +
       '<form class="panel stack" id="welcome-form">' +
         '<div class="field"><label for="w-me">Your name</label><input id="w-me" maxlength="24" required autocomplete="given-name"></div>' +
         '<div class="field"><label for="w-partner">Your spouse\'s name</label><input id="w-partner" maxlength="24" placeholder="Optional"></div>' +
-        '<button type="submit" class="btn primary">Start day 1</button>' +
-      '</form>' +
-      '<p class="small muted">Tip: start on the same day on both phones, so your day numbers match.</p>';
+        '<button type="submit" class="btn primary">Start</button>' +
+      '</form>';
   }
 
   /* ---------- routing ---------- */
-  var TABS = { today: renderToday, phrases: renderPhrases, cards: renderCards, alphabet: renderAlphabet, bible: renderBible, settings: renderSettings, welcome: renderWelcome };
-  var current = 'today';
-  function go(tab, keepScroll) {
-    if (!TABS[tab]) tab = 'today';
-    if (!S.setup) tab = 'welcome';
-    current = tab;
-    if (tab !== 'settings') { resetArmed = null; leaveArmed = false; }
+  var VIEWS = { home: renderHome, course: renderCourse, note: renderNotebook, session: renderSession, settings: renderSettings, welcome: renderWelcome };
+  var current = 'home';
+  function go(view, keepScroll) {
+    if (!VIEWS[view]) view = 'home';
+    if (!S.setup) view = 'welcome';
+    if (view === 'session' && !run) view = 'home';
+    current = view;
+    if (view !== 'settings') { resetArmed = false; leaveArmed = false; }
+    document.body.classList.toggle('in-session', view === 'session' || view === 'welcome');
     document.querySelectorAll('#tabs button').forEach(function (b) {
-      if (b.dataset.tab === tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+      var on = b.dataset.tab === view || (view === 'note' && b.dataset.tab === 'course');
+      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
-    renderWho();
-    TABS[tab]();
+    renderHeader();
+    VIEWS[view]();
     if (!keepScroll) window.scrollTo(0, 0);
-    try { if (location.hash.slice(1) !== tab) history.replaceState(null, '', '#' + tab); } catch (e) { /* ignore */ }
+    var hash = view === 'note' ? 'course' : view === 'session' ? 'home' : view;
+    try { if (location.hash.slice(1) !== hash) history.replaceState(null, '', '#' + hash); } catch (e) { /* ignore */ }
   }
   function refresh() { go(current, true); }
 
   document.addEventListener('click', function (e) {
     var t = e.target.closest('button');
-    if (!t) return;
+    if (!t || t.disabled) return;
     var d = t.dataset;
     if (d.say) { say(d.say); return; }
-    if (d.tab) { go(d.tab); return; }
+    if (d.tab) { run = null; go(d.tab); return; }
     if (d.go) { go(d.go); return; }
-    if (d.who) { S.who = d.who; session = null; save(); refresh(); return; }
-    if (d.cat) { phraseCat = d.cat; refresh(); return; }
-    if (d.front) { S.front = d.front; save(); if (session) session.shown = false; refresh(); return; }
-    if (d.reveal) { session.shown = true; refresh(); return; }
-    if (d.grade) { grade(session.queue[0], Number(d.grade)); refresh(); return; }
-    if (d.letter) { letterIdx = Number(d.letter); markActive(); refresh(); return; }
-    if (d.opt) {
-      quiz.picked = d.opt; quiz.tries++;
-      if (d.opt === D.alphabet[quiz.i].sound) quiz.score++;
-      markActive(); refresh(); return;
+    if (d.home || d.close) { run = null; go('home'); return; }
+    if (d.start) { startSession(false); return; }
+    if (d.extra) { startSession(true); return; }
+    if (d.ahead) { P().aheadOk = Number(d.ahead); save(); startSession(false); return; }
+    if (d.note) { noteN = Number(d.note); run = null; go('note'); return; }
+
+    if (d.show) { run.shown = true; var it = itemByKey(run.rq[0]); if (it) say(it.el); refresh(); return; }
+    if (d.card) {
+      var key = run.rq.shift();
+      gradeCard(key, d.card === '1');
+      if (d.card === '0') run.rq.push(key); else run.reviewed++;
+      run.shown = false;
+      if (!run.extra && !run.rq.length) { nextBlock(); return; }
+      save(); refresh(); return;
     }
-    if (d.nextq) { newQuiz(); refresh(); return; }
-    if (d.verse) { verseIdx = (verseIdx + Number(d.verse) + D.verses.length) % D.verses.length; markActive(); refresh(); return; }
+    if (d.newstep) {
+      run.step = Math.max(0, run.step + Number(d.newstep));
+      var ni = run.items[run.step];
+      if (ni) say(ni.el);
+      refresh(); window.scrollTo(0, 0); return;
+    }
+    if (d.nextblock) { nextBlock(); return; }
+    if (d.opt) { answerPractice(d.opt); refresh(); return; }
+    if (d.tile) { run.built.push(Number(d.tile)); refresh(); return; }
+    if (d.clear) { run.built = []; refresh(); return; }
+    if (d.check) { answerPractice(null); refresh(); return; }
+    if (d.nextq) { run.qi++; run.answer = null; run.built = []; refresh(); window.scrollTo(0, 0); return; }
+    if (d.swap) { run.swap = !run.swap; refresh(); return; }
+    if (d.finish) { finishLesson(); return; }
+
+    if (d.themePick) { S.theme = d.themePick; save(); applyTheme(); refresh(); return; }
+    if (d.who) { S.who = d.who; run = null; save(); refresh(); return; }
     if (d.create) {
       if (!window.MaziSync) { toast('Sync is not available here. Open Mazí from your GitHub link.'); return; }
       connectCouple(newCode()); return;
     }
     if (d.copy) {
-      var code = S.couple;
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(code).then(function () { toast('Code copied. Send it to your spouse.'); }, function () { selectCode(); });
+        navigator.clipboard.writeText(S.couple).then(function () { toast('Code copied. Send it to your spouse.'); }, selectCode);
       } else selectCode();
       return;
     }
-    if (d.themePick) { S.theme = d.themePick; save(); applyTheme(); refresh(); return; }
-    if (d.retry) {
-      if (window.MaziSync && S.couple) { window.MaziSync.connect(S.couple); toast('Trying again…'); }
-      return;
-    }
+    if (d.retry) { if (window.MaziSync && S.couple) { window.MaziSync.connect(S.couple); toast('Trying again…'); } return; }
     if (d.leave) {
       if (!leaveArmed) { leaveArmed = true; refresh(); return; }
       leaveArmed = false;
@@ -608,12 +742,11 @@
       toast('This phone is disconnected.'); refresh(); return;
     }
     if (d.reset) {
-      if (resetArmed === d.reset) {
-        var name = S.profiles[d.reset].name;
-        S.profiles[d.reset] = freshProfile(name);
-        resetArmed = null; session = null; save(); toast(name + '\'s progress was reset.');
-      } else { resetArmed = d.reset; }
-      refresh(); return;
+      if (!resetArmed) { resetArmed = true; refresh(); return; }
+      resetArmed = false;
+      var name = P().name;
+      S.profiles[S.who] = freshProfile(name); run = null; save();
+      toast(name + '\'s course starts again from lesson 1.'); refresh(); return;
     }
   });
 
@@ -626,39 +759,20 @@
   }
 
   document.addEventListener('submit', function (e) {
-    if (e.target.id === 'join-form') {
-      e.preventDefault();
+    e.preventDefault();
+    if (e.target.id === 'welcome-form') {
+      var me = document.getElementById('w-me').value.trim();
+      var sp = document.getElementById('w-partner').value.trim();
+      if (!me) return;
+      S.profiles.a.name = me;
+      if (sp) S.profiles.b.name = sp;
+      S.who = 'a'; S.setup = true; save();
+      go('home');
+    } else if (e.target.id === 'join-form') {
       var code = cleanCode(document.getElementById('join-code').value);
       if (!code) { toast('That code doesn\'t look right. It has 16 letters and numbers.'); return; }
       if (!window.MaziSync) { toast('Sync is not available here. Open Mazí from your GitHub link.'); return; }
-      connectCouple(code); toast('Connected. You\'ll see each other on the Today screen.');
-      return;
-    }
-    if (e.target.id !== 'welcome-form') return;
-    e.preventDefault();
-    var me = document.getElementById('w-me').value.trim();
-    var partner = document.getElementById('w-partner').value.trim();
-    if (!me) return;
-    S.profiles.a.name = me;
-    if (partner) S.profiles.b.name = partner;
-    S.who = 'a'; S.setup = true; save();
-    go('today');
-  });
-
-  document.addEventListener('change', function (e) {
-    var t = e.target, d = t.dataset;
-    if (d.check) {
-      var p = P(), day = today();
-      var ch = p.checks[day] || (p.checks[day] = {});
-      ch[d.check] = t.checked;
-      // Keep only the last 60 days of ticks.
-      Object.keys(p.checks).forEach(function (k) { if (diffDays(k, day) > 60) delete p.checks[k]; });
-      if (t.checked) markActive(); else save();
-      refresh();
-    } else if (d.versePick) {
-      verseIdx = Number(t.value); refresh();
-    } else if (d.start) {
-      if (t.value && t.value <= today()) { S.profiles[d.start].start = t.value; save(); refresh(); }
+      connectCouple(code); toast('Connected. You\'ll see each other on the home screen.');
     }
   });
 
@@ -666,15 +780,16 @@
     var d = e.target.dataset;
     if (d.name) {
       S.profiles[d.name].name = e.target.value.trim() || (d.name === 'a' ? 'Husband' : 'Wife');
-      save(); renderWho();
+      save(); renderHeader();
     }
   });
 
-  window.addEventListener('hashchange', function () { var h = location.hash.slice(1); if (h && h !== current) go(h); });
+  window.addEventListener('hashchange', function () {
+    var h = location.hash.slice(1);
+    if (h && h !== current && (h === 'home' || h === 'course' || h === 'settings')) { run = null; go(h); }
+  });
 
-  go((location.hash || '#today').slice(1));
-  // If sync.js fails to load (offline, or a host that blocks it), say so instead of spinning.
-  setTimeout(function () {
-    if (!window.MaziSync) window.MaziApp.setRemote({ status: 'unavailable' });
-  }, 8000);
+  var startHash = (location.hash || '#home').slice(1);
+  go(startHash === 'course' || startHash === 'settings' ? startHash : 'home');
+  setTimeout(function () { if (!window.MaziSync) window.MaziApp.setRemote({ status: 'unavailable' }); }, 8000);
 })();

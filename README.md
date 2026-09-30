@@ -1,14 +1,30 @@
 # Mazí (μαζί, "together")
 
-A small Greek-learning web app for two people learning together, with Telugu support, about 30 minutes a day.
+A Greek course for a couple, built around one 30-minute session a day, taken together. Explanations are in English with Telugu comparisons, and every Greek word shows its pronunciation in Telugu script and in English letters.
 
-- **Today**: a daily 30-minute plan in three stages (letters for days 1–14, everyday Greek to day 180, then Greek + Bible), a shared "talk together" prompt, a phrase of the day, and a streak.
-- **Phrases**: 63 everyday Modern Greek phrases for home life, love, faith, feelings and plans. Each has pronunciation in Telugu script and Latin letters, English and Telugu meanings, and read-aloud.
-- **Cards**: spaced-repetition flashcards (up to 8 new phrases a day), Greek-first or English-first.
-- **Letters**: all 24 letters with Telugu sound equivalents, a quiz, and the letter pairs (ου, αι, μπ, ...).
-- **Bible**: Koine New Testament verses with Modern Greek, English and Telugu renderings, and a word-by-word table marking which words are still the same today and which are old forms.
+## How it works
 
-Pronunciation is Modern Greek. In the Telugu-script guide, a long vowel (ా ీ ూ ే ో) marks the stressed syllable.
+- **Today**: one lesson at a time. Tap Start and go through four blocks:
+  1. **Review** (5 min): spaced-repetition cards from earlier lessons.
+  2. **New** (10 min): 5–10 new words or phrases, then one grammar point with a Telugu tip.
+  3. **Practice** (10 min): choose the meaning, choose the Greek, build a sentence. Mistakes come back once.
+  4. **Together** (5 min): a short dialogue to read aloud to each other, then swap roles.
+- **Same lesson**: when two phones are connected, the next lesson opens once both of you have finished the previous one (with a "go ahead anyway" option).
+- **Lessons**: every finished lesson stays available as a notebook (words, grammar, dialogue, audio).
+
+## Course plan
+
+| Phase | Lessons | Goal |
+|---|---|---|
+| 0 Letters & sounds | 1–10 | Read any Greek word aloud |
+| 1 Home Greek | 11–90 | Everyday talk at home |
+| 2 Your day | 91–180 | Past, future, telling your day |
+| 3 Bible bridge | 181–270 | Koine forms and New Testament verses |
+| 4 Reading together | 271+ | The Gospel of John |
+
+Lessons 1–30 are written (`js/course.js`). Later units are listed as "coming soon" and get added in batches. `js/bible-verses.js` holds verses with word-by-word notes for Phase 3.
+
+Pronunciation guides are generated from the Greek spelling by `js/translit.js` (Modern Greek pronunciation; in Telugu script a long vowel marks the stressed syllable).
 
 ## Running it
 
@@ -42,4 +58,4 @@ Sync only works from the GitHub Pages site. Everything else in the app works wit
 
 ## Editing content
 
-All phrases, prompts, letters and verses live in `js/data.js`.
+Lessons live in `js/course.js`: each has items, a grammar note and a dialogue.
