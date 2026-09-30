@@ -103,9 +103,9 @@
   /* ---------- header ---------- */
   function renderWho() {
     var el = document.getElementById('who');
-    el.innerHTML = ['a', 'b'].map(function (k) {
-      return '<button type="button" data-who="' + k + '" aria-pressed="' + (S.who === k) + '">' + esc(S.profiles[k].name) + '</button>';
-    }).join('') + '<button type="button" class="gear" data-go="settings" aria-label="Names and settings" title="Names and settings">⚙</button>';
+    if (!S.setup) { el.innerHTML = ''; return; }
+    el.innerHTML = '<button type="button" data-go="settings" aria-pressed="true" title="Names and settings">' + esc(P().name) + '</button>' +
+      '<button type="button" class="gear" data-go="settings" aria-label="Names and settings" title="Names and settings">⚙</button>';
   }
 
   /* ---------- today ---------- */
@@ -382,15 +382,49 @@
     }
     $view.innerHTML =
       '<div class="section-title"><h2>Names and settings</h2><button type="button" class="btn quiet" data-tab="today">Done</button></div>' +
-      '<p class="small muted" style="margin:-8px 0 0">Progress is saved on this device. Each of you can use your own phone, or share one and switch names at the top.</p>' +
-      '<div class="grid2">' + block('a', a) + block('b', b) + '</div>';
+      '<section class="panel stack">' +
+        '<div class="switch" style="justify-content:space-between;flex-wrap:wrap">This phone is for <div class="seg" role="group" aria-label="This phone is for">' +
+          '<button type="button" data-who="a" aria-pressed="' + (S.who === 'a') + '">' + esc(a.name) + '</button>' +
+          '<button type="button" data-who="b" aria-pressed="' + (S.who === 'b') + '">' + esc(b.name) + '</button></div></div>' +
+        '<p class="small muted" style="margin:0">Progress is saved on this phone only. Each of you keeps your own streak and cards on your own phone. The daily talk prompt and verse are the same on both phones, so you can do them together.</p>' +
+      '</section>' +
+      '<div class="grid2">' + block('a', a) + block('b', b) + '</div>' +
+      installHelp();
+  }
+
+  function installHelp() {
+    return '<section class="panel stack">' +
+      '<div class="section-title"><h2>Put Mazí on your home screen</h2></div>' +
+      '<div class="stack small">' +
+        '<div><b>iPhone</b> · Open the link in Safari, tap the Share button (square with an arrow), then <b>Add to Home Screen</b>.</div>' +
+        '<div><b>Android</b> · Open the link in Chrome, tap the ⋮ menu, then <b>Add to Home screen</b> or <b>Install app</b>.</div>' +
+        '<div class="muted">Always open Mazí from the home screen icon. On iPhone, the icon and Safari keep separate progress.</div>' +
+        '<div class="muted"><b>No sound?</b> iPhone: Settings › Accessibility › Spoken Content › Voices › Greek. Android: Settings › Text-to-speech › Speech Services by Google › Install voice data › Greek.</div>' +
+      '</div></section>';
+  }
+
+  /* ---------- first run ---------- */
+  function renderWelcome() {
+    $view.innerHTML =
+      '<section class="stack">' +
+        '<div class="eyebrow">Καλώς ήρθες · Welcome</div>' +
+        '<h1 style="font-size:28px">Who is learning on this phone?</h1>' +
+        '<p class="muted" style="margin:0">You each use Mazí on your own phone. Your progress stays on this phone, and the daily talk prompt is the same for both of you.</p>' +
+      '</section>' +
+      '<form class="panel stack" id="welcome-form">' +
+        '<div class="field"><label for="w-me">Your name</label><input id="w-me" maxlength="24" required autocomplete="given-name"></div>' +
+        '<div class="field"><label for="w-partner">Your spouse\'s name</label><input id="w-partner" maxlength="24" placeholder="Optional"></div>' +
+        '<button type="submit" class="btn primary">Start day 1</button>' +
+      '</form>' +
+      '<p class="small muted">Tip: start on the same day on both phones, so your day numbers match.</p>';
   }
 
   /* ---------- routing ---------- */
-  var TABS = { today: renderToday, phrases: renderPhrases, cards: renderCards, alphabet: renderAlphabet, bible: renderBible, settings: renderSettings };
+  var TABS = { today: renderToday, phrases: renderPhrases, cards: renderCards, alphabet: renderAlphabet, bible: renderBible, settings: renderSettings, welcome: renderWelcome };
   var current = 'today';
   function go(tab, keepScroll) {
     if (!TABS[tab]) tab = 'today';
+    if (!S.setup) tab = 'welcome';
     current = tab;
     if (tab !== 'settings') resetArmed = null;
     document.querySelectorAll('#tabs button').forEach(function (b) {
@@ -431,6 +465,18 @@
       } else { resetArmed = d.reset; }
       refresh(); return;
     }
+  });
+
+  document.addEventListener('submit', function (e) {
+    if (e.target.id !== 'welcome-form') return;
+    e.preventDefault();
+    var me = document.getElementById('w-me').value.trim();
+    var partner = document.getElementById('w-partner').value.trim();
+    if (!me) return;
+    S.profiles.a.name = me;
+    if (partner) S.profiles.b.name = partner;
+    S.who = 'a'; S.setup = true; save();
+    go('today');
   });
 
   document.addEventListener('change', function (e) {

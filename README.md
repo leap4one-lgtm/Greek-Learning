@@ -18,11 +18,16 @@ It is plain HTML, CSS and JavaScript with no build step. Open `index.html` in a 
 python3 -m http.server 8000
 ```
 
-To put it on your phones, enable GitHub Pages for this repository (Settings → Pages → deploy from branch), then open the page and choose "Add to Home Screen".
+## On your phones (Android and iPhone)
 
-Progress is stored in the browser (`localStorage`) on each device. Two names can share one phone, or each person can use their own.
+Host it with GitHub Pages (Settings → Pages → Deploy from a branch → this branch, `/ (root)`). The site is then at `https://leap4one-lgtm.github.io/Greek-Learning/`. GitHub Pages on a private repository needs a paid GitHub plan; on a free plan the repository has to be public.
 
-Read-aloud uses the device's Greek text-to-speech voice. If nothing plays, add Greek under the phone's text-to-speech or language settings.
+- **iPhone:** open the link in Safari → Share → **Add to Home Screen**.
+- **Android:** open the link in Chrome → ⋮ → **Add to Home screen** / **Install app**.
+
+On first open, each phone asks whose phone it is. Progress (streak, cards, ticks) is stored on that phone in `localStorage`. The daily talk prompt, phrase and verse are chosen by date, so both phones show the same ones on the same day. Always open the app from the home-screen icon: on iPhone the icon and Safari keep separate storage.
+
+Read-aloud uses the device's Greek text-to-speech voice. If nothing plays: on iPhone, Settings › Accessibility › Spoken Content › Voices › Greek; on Android, Settings › Text-to-speech › Speech Services by Google › Install voice data › Greek.
 
 ## Editing content
 
