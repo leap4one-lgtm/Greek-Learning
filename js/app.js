@@ -3,19 +3,14 @@
 
   var C = window.MAZI_COURSE;
   var G = window.GreekSay;
+  var B = window.MaziBook;
+  var X = C.extra || {};
   var KEY = 'mazi-greek-v1';
   var DAY_MS = 86400000;
-  var REVIEW_MAX = 20;
-  var BLOCKS = [
-    { id: 'review', label: 'Review', min: 5 },
-    { id: 'new', label: 'New', min: 10 },
-    { id: 'practice', label: 'Practice', min: 10 },
-    { id: 'together', label: 'Together', min: 5 }
-  ];
+  var REVIEW_MAX = 8;
 
   var LESSONS = {};
   C.lessons.forEach(function (l) { LESSONS[l.n] = l; });
-  var LAST = C.lessons.length ? C.lessons[C.lessons.length - 1].n : 0;
 
   /* ---------- dates ---------- */
   function pad(n) { return String(n).padStart(2, '0'); }
@@ -23,25 +18,29 @@
   function parseDay(s) { var p = s.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
   function addDays(s, n) { var d = parseDay(s); d.setDate(d.getDate() + n); return dayStr(d); }
   function today() { return dayStr(); }
+  function dateIndex() { return Math.floor(parseDay(today()).getTime() / DAY_MS); }
 
   /* ---------- state ---------- */
-  function freshProfile(name) {
-    return { name: name, completed: 0, finishedOn: {}, cards: {}, active: [], session: null, blocks: { date: '', n: 0 }, aheadOk: 0 };
-  }
-  function freshState() {
-    return { v: 2, who: 'a', theme: 'system', setup: false, couple: null, profiles: { a: freshProfile('Husband'), b: freshProfile('Wife') } };
-  }
+  function freshProfile(name) { return { name: name, completed: 0, finishedOn: {}, cards: {}, active: [], opened: {}, scroll: {}, aheadOk: 0 }; }
+  function freshState() { return { v: 3, who: 'a', theme: 'system', keys: true, setup: false, couple: null, profiles: { a: freshProfile('Husband'), b: freshProfile('Wife') } }; }
   function load() {
     try {
       var raw = localStorage.getItem(KEY);
       if (raw) {
         var s = JSON.parse(raw);
-        if (s && s.v === 2 && s.profiles) return s;
-        if (s && s.v === 1 && s.profiles) {
-          // Earlier version: keep names, theme, sync code and whose phone it is. Progress starts fresh with the course.
+        if (s && s.v === 3 && s.profiles) return s;
+        if (s && (s.v === 1 || s.v === 2) && s.profiles) {
+          // Earlier versions: keep names, theme, sync code and lesson progress where there was any.
           var f = freshState();
           f.who = s.who || 'a'; f.theme = s.theme || 'system'; f.setup = !!s.setup; f.couple = s.couple || null;
-          f.profiles.a.name = s.profiles.a.name; f.profiles.b.name = s.profiles.b.name;
+          ['a', 'b'].forEach(function (k) {
+            var o = s.profiles[k] || {};
+            f.profiles[k].name = o.name || f.profiles[k].name;
+            if (s.v === 2) {
+              f.profiles[k].completed = o.completed || 0; f.profiles[k].finishedOn = o.finishedOn || {};
+              f.profiles[k].cards = o.cards || {}; f.profiles[k].active = o.active || [];
+            }
+          });
           return f;
         }
       }
@@ -64,12 +63,6 @@
     while (set[d]) { n++; d = addDays(d, -1); }
     return n;
   }
-  function blocksToday(p) { return p.blocks && p.blocks.date === today() ? p.blocks.n : 0; }
-  function setBlocks(n) {
-    var p = P();
-    if (!p.blocks || p.blocks.date !== today()) p.blocks = { date: today(), n: 0 };
-    p.blocks.n = Math.max(p.blocks.n, n);
-  }
 
   /* ---------- appearance ---------- */
   function applyTheme() {
@@ -78,43 +71,30 @@
     else document.documentElement.removeAttribute('data-theme');
     var dark = t ? t === 'dark' : !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', dark ? '#170D1F' : '#F6F2F8');
+    if (meta) meta.setAttribute('content', dark ? '#16101C' : '#FAF7FB');
   }
   applyTheme();
   try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme); } catch (e) { /* old browsers */ }
 
   /* ---------- helpers ---------- */
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function shuffle(a) { a = a.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
-  function initial(name) { return esc((name || '?').trim().charAt(0).toUpperCase() || '?'); }
-  var $view = document.getElementById('view');
+  var esc = B.esc;
+  var $page = document.getElementById('page');
   var toastTimer;
   function toast(msg) {
     var t = document.getElementById('toast');
     t.textContent = msg; t.hidden = false;
-    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 2600);
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 2800);
   }
-
-  /* ---------- items ---------- */
+  function unitOf(n) { return C.units.find(function (u) { return n >= u.from && n <= u.to; }); }
   function itemsOf(n) {
     var l = LESSONS[n];
-    return l ? l.items.map(function (it, i) { return Object.assign({ key: n + ':' + i, lesson: n }, it); }) : [];
+    return l ? l.items.map(function (it, i) { return Object.assign({ key: n + ':' + i }, it); }) : [];
   }
   function itemByKey(key) {
     var parts = key.split(':'), l = LESSONS[+parts[0]];
-    return l && l.items[+parts[1]] ? Object.assign({ key: key, lesson: +parts[0] }, l.items[+parts[1]]) : null;
+    return l && l.items[+parts[1]] ? Object.assign({ key: key }, l.items[+parts[1]]) : null;
   }
-  function isLetter(it) { return it.k === 'letter'; }
-  function pron(it) {
-    if (isLetter(it)) return { tr: it.say, te: it.te };
-    return { tr: G.latin(it.el), te: G.telugu(it.el) };
-  }
-  function shown(it) { return isLetter(it) ? it.up + ' ' + it.el : it.el; }
-  function learnedItems() {
-    var out = [];
-    for (var n = 1; n <= P().completed; n++) out = out.concat(itemsOf(n));
-    return out;
-  }
+  function olderItems(n) { var out = []; for (var k = 1; k < n; k++) out = out.concat(itemsOf(k)); return out; }
 
   /* ---------- speech ---------- */
   var greekVoice = null;
@@ -130,17 +110,33 @@
   var warnedVoice = false;
   function say(text) {
     if (!('speechSynthesis' in window)) { toast('This browser cannot read aloud. Use the pronunciation guide.'); return; }
-    var clean = String(text).replace(/\s*\/\s*/g, ', ').replace(/_{2,}/g, '').replace(/…/g, '');
+    var clean = String(text).replace(/\s*\/\s*/g, ', ').replace(/_{2,}/g, '').replace(/[…«»]/g, '');
     var u = new SpeechSynthesisUtterance(clean);
     u.lang = 'el-GR'; u.rate = 0.8;
     if (greekVoice) u.voice = greekVoice;
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(u);
-    if (!greekVoice && !warnedVoice) { warnedVoice = true; toast('No Greek voice found. See settings for how to add one.'); }
+    if (!greekVoice && !warnedVoice) { warnedVoice = true; toast('No Greek voice found. Settings explains how to add one.'); }
   }
-  var SPEAK_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-  function speakBtn(text, label, big) {
-    return '<button type="button" class="speak' + (big ? ' big' : '') + '" data-say="' + esc(text) + '" aria-label="Listen: ' + esc(label || text) + '">' + SPEAK_ICON + '</button>';
+
+  /* ---------- spaced review ---------- */
+  function dueCards() {
+    var p = P(), t = today();
+    return Object.keys(p.cards).filter(function (k) { return p.cards[k].due <= t && itemByKey(k); })
+      .sort(function (a, b) { return p.cards[a].due < p.cards[b].due ? -1 : 1; });
+  }
+  function gradeCard(key, good) {
+    var p = P(), t = today(), c = p.cards[key];
+    if (!c) return;
+    if (!good) { c.reps = 0; c.ivl = 1; c.due = addDays(t, 1); return; }
+    c.ivl = c.reps === 0 ? 2 : c.reps === 1 ? 4 : Math.round(Math.max(c.ivl, 1) * 2.3);
+    c.reps++;
+    c.due = addDays(t, c.ivl);
+  }
+  function reviewFor(n) {
+    var due = dueCards().slice(0, REVIEW_MAX).map(itemByKey);
+    if (due.length) return due;
+    return n > 1 ? itemsOf(n - 1).slice(0, 6) : [];
   }
 
   /* ---------- sync with your spouse (js/sync.js does the network part) ---------- */
@@ -152,10 +148,10 @@
       if (S.couple && window.MaziSync) window.MaziSync.push(summary()).catch(function () { /* retried on next save */ });
     }, 1200);
   }
-  // Stored fields: "day" holds the number of lessons finished; "done"/"total" are today's session blocks.
+  // Stored fields: "day" holds the number of lessons finished; "done" is 1 when today's lesson is finished.
   function summary() {
     var p = P();
-    return { name: p.name, streak: streak(p), day: p.completed, date: today(), done: blocksToday(p), total: BLOCKS.length, started: Object.keys(p.cards).length };
+    return { name: p.name, streak: streak(p), day: p.completed, date: today(), done: p.finishedOn[p.completed] === today() ? 1 : 0, total: 1, started: Object.keys(p.cards).length };
   }
   function partner() {
     if (!S.couple) return null;
@@ -163,7 +159,7 @@
       .sort(function (a, b) { return (b.updated || 0) - (a.updated || 0); });
     return others[0] || null;
   }
-  function partnerName() {
+  function spouseName() {
     var m = partner();
     if (m && m.name) return m.name;
     return S.profiles[S.who === 'a' ? 'b' : 'a'].name;
@@ -192,536 +188,303 @@
     setRemote: function (patch) {
       var statusChanged = patch.status !== undefined && patch.status !== remote.status;
       Object.keys(patch).forEach(function (k) { remote[k] = patch[k]; });
-      if (current === 'home' || (current === 'settings' && statusChanged)) refresh();
+      if (view === 'home' || (view === 'settings' && statusChanged)) refresh();
     }
   };
 
-  /* ---------- together rings ---------- */
-  function ring(pct, label, cls) {
-    var c = 2 * Math.PI * 17, off = c * (1 - Math.max(0, Math.min(1, pct)));
-    return '<span class="ring ' + (cls || '') + '"><svg viewBox="0 0 42 42" aria-hidden="true"><circle class="track" cx="21" cy="21" r="17"/>' +
-      '<circle class="fill" cx="21" cy="21" r="17" stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '"/></svg><b>' + label + '</b></span>';
-  }
-  function renderHeader() {
-    var el = document.getElementById('who');
-    el.innerHTML = S.setup ? '<button type="button" class="avatar" data-go="settings" aria-label="Settings" title="Settings">' + initial(P().name) + '</button>' : '';
-  }
-  function togetherHTML() {
-    var p = P(), t = today();
-    var me = '<div class="person">' + ring(blocksToday(p) / BLOCKS.length, initial(p.name)) +
-      '<div><b>' + streak(p) + '</b><span>' + esc(p.name) + '\'s streak</span></div></div>';
-    if (!S.couple) {
-      return '<section class="together">' + me + '<button type="button" class="linkish" data-go="settings">Connect with your spouse ›</button></section>';
-    }
-    var m = partner(), other;
-    if (m) {
-      var fresh = m.date === t || m.date === addDays(t, -1);
-      var done = m.date === t ? (m.done || 0) : 0;
-      other = '<div class="person">' + ring(done / (m.total || BLOCKS.length), initial(m.name), 'partner') +
-        '<div><b>' + (fresh ? m.streak : 0) + '</b><span>' + esc(m.name) + '\'s streak</span></div></div>';
-    } else {
-      other = '<p class="small muted">' + (remote.status === 'on' ? 'Waiting for your spouse to connect.' : remote.status === 'error' ? 'Can\'t reach shared progress right now.' : 'Connecting…') + '</p>';
-    }
-    return '<section class="together" aria-label="Today\'s progress and streaks">' + me + other + '</section>';
+  /* ---------- masthead ---------- */
+  function mast() {
+    if (!S.setup) return '<div class="mast"><span class="brand" lang="el">μαζί</span></div>';
+    var cur = view === 'lesson' ? (lessonN > P().completed ? 'home' : 'course') : view;
+    function nb(v, label) { return '<button type="button" data-view="' + v + '"' + (cur === v ? ' aria-current="page"' : '') + '>' + label + '</button>'; }
+    return '<div class="mast"><span class="brand" lang="el">μαζί</span><nav aria-label="Sections">' + nb('home', 'Today') + nb('course', 'Lessons') +
+      '<button type="button" class="gear" data-view="settings" aria-label="Settings"' + (cur === 'settings' ? ' aria-current="page"' : '') + '>⚙</button></nav></div>';
   }
 
   /* ---------- home ---------- */
-  function lessonLabel(n) {
-    var u = C.units.find(function (x) { return n >= x.from && n <= x.to; });
-    return 'Lesson ' + n + (u ? ' · ' + u.title : '');
+  function weekTable() {
+    var p = P(), t = today(), d = parseDay(t), dow = (d.getDay() + 6) % 7, monday = addDays(t, -dow);
+    var days = [], labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    for (var i = 0; i < 7; i++) days.push(addDays(monday, i));
+    var mine = {}; p.active.forEach(function (x) { mine[x] = 1; });
+    var m = partner(), theirs = {};
+    if (m && m.date && m.streak) for (var k = 0; k < m.streak; k++) theirs[addDays(m.date, -k)] = 1;
+    function row(name, set, cls) {
+      return '<tr><td>' + esc(name) + '</td>' + days.map(function (x) {
+        return '<td><span class="d' + (set[x] ? ' on ' + cls : x === t ? ' today' : '') + '"></span></td>';
+      }).join('') + '</tr>';
+    }
+    return '<table class="week" aria-label="This week"><thead><tr><th></th>' + labels.map(function (l, i) { return '<th' + (days[i] === t ? ' class="today"' : '') + '>' + l + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      row(p.name, mine, '') + (m ? row(m.name, theirs, 'her') : '') + '</tbody></table>';
   }
   function waitingFor(next) {
     var m = partner();
-    if (!m) return false;
-    return (m.day || 0) < next - 1 && P().aheadOk !== next;
+    return !!m && (m.day || 0) < next - 1 && P().aheadOk !== next;
   }
-  function lessonCard(L, cta) {
-    return '<section class="hero">' +
-      '<div class="eyebrow">' + esc(lessonLabel(L.n)) + '</div>' +
-      '<h1>' + esc(L.title) + '</h1>' +
-      '<p class="muted">' + esc(L.goal) + '</p>' +
-      '<button type="button" class="start" data-start="1"><span><b>' + esc(cta) + '</b><small>' +
-        BLOCKS.map(function (b) { return b.label; }).join(' · ') + '</small></span><i aria-hidden="true">›</i></button>' +
-    '</section>';
+  function contentsList(L) {
+    var x = X[L.n] || {};
+    var parts = ['Review', 'Reading' + (x.reading ? ': ' + x.reading.title : ''), 'Vocabulary', L.grammar.title];
+    if (x.bible) parts.push('From the Bible: ' + x.bible.ref);
+    parts.push('Exercises', 'Together');
+    return '<p class="note-line">' + parts.map(esc).join(' · ') + '</p>';
   }
   function renderHome() {
-    var p = P(), next = p.completed + 1, L = LESSONS[next];
+    var p = P(), next = p.completed + 1, L = LESSONS[next], m = partner();
+    var hour = new Date().getHours();
+    var greet = hour < 12 ? 'Καλημέρα' : 'Καλησπέρα';
+    var h = '<p class="greet" lang="el">' + greet + ', ' + esc(p.name) + '</p>' +
+      '<p class="note-line">' + streak(p) + '-day streak' + (m ? ' · ' + esc(m.name) + ': ' + ((m.date === today() || m.date === addDays(today(), -1)) ? m.streak : 0) + ' days' : '') + '</p>' +
+      weekTable();
+    if (m) {
+      var mDone = m.date === today() && m.done;
+      h += '<p class="note-line">' + esc(m.name) + (mDone ? ' finished lesson ' + m.day + ' today.' : ' has finished ' + (m.day || 0) + ' lesson' + (m.day === 1 ? '' : 's') + ' so far.') + '</p>';
+    } else if (!S.couple) {
+      h += '<p class="note-line"><button type="button" class="linkbtn" data-view="settings">Connect with your spouse ›</button></p>';
+    }
+
+    h += '<div class="todaybox">';
     var finishedToday = p.completed > 0 && p.finishedOn[p.completed] === today();
-    var due = dueCards().length;
-    var body;
-
-    if (p.session && p.session.n === next && L) {
-      body = lessonCard(L, 'Continue · ' + BLOCKS[p.session.block].label);
-    } else if (!L) {
-      body = '<section class="hero"><div class="eyebrow">All caught up</div><h1>You\'ve finished every lesson written so far.</h1>' +
-        '<p class="muted">New lessons are on the way. Meanwhile, keep your cards fresh.</p>' +
-        (due ? '<button type="button" class="btn primary wide" data-extra="1">Review ' + due + ' cards</button>' : '') + '</section>';
+    if (!L) {
+      h += '<div class="kicker">All caught up</div><h1>You\'ve finished every lesson written so far.</h1><p>New lessons are on the way. Meanwhile, reread a finished lesson from the Lessons page, and keep talking together.</p>';
     } else if (finishedToday) {
-      body = '<section class="hero done"><div class="eyebrow">Lesson ' + p.completed + ' done</div><h1 lang="el">Μπράβο!</h1>' +
-        '<p class="muted">That\'s today\'s 30 minutes. Tomorrow: lesson ' + next + ', ' + esc(L.title) + '.</p>' +
-        (due ? '<button type="button" class="btn wide" data-extra="1">Extra review · ' + due + ' cards</button>' : '') +
-        '<button type="button" class="linkish" data-start="1">Start lesson ' + next + ' anyway ›</button></section>';
+      var done = LESSONS[p.completed];
+      h += '<div class="kicker">Lesson ' + p.completed + ' done</div><h1 lang="el">Μπράβο!</h1>' +
+        '<p>You finished <i>' + esc(done.title) + '</i> today. Tomorrow: lesson ' + next + ', <i>' + esc(L.title) + '</i>.</p>' +
+        '<div class="btnrow"><button type="button" class="btn" data-lesson="' + p.completed + '">Reread today\'s lesson</button>' +
+        '<button type="button" class="linkbtn" data-open="' + next + '">Start lesson ' + next + ' anyway ›</button></div>';
     } else if (waitingFor(next)) {
-      var m = partner();
-      body = '<section class="hero"><div class="eyebrow">' + esc(lessonLabel(next)) + '</div><h1>Waiting for ' + esc(m.name) + '</h1>' +
-        '<p class="muted">You take each lesson together. ' + esc(m.name) + ' still has lesson ' + ((m.day || 0) + 1) + ' to finish. Then lesson ' + next + ' opens for you both.</p>' +
-        (due ? '<button type="button" class="btn primary wide" data-extra="1">Review ' + due + ' cards meanwhile</button>' : '') +
-        '<button type="button" class="linkish" data-ahead="' + next + '">Go ahead anyway ›</button></section>';
+      h += '<div class="kicker">Lesson ' + next + ' · ' + esc((unitOf(next) || {}).title || '') + '</div><h1>Waiting for ' + esc(m.name) + '</h1>' +
+        '<p>You take each lesson together. ' + esc(m.name) + ' still has lesson ' + ((m.day || 0) + 1) + ' to finish; then lesson ' + next + ' opens for you both. Meanwhile, reread the last lesson.</p>' +
+        '<div class="btnrow">' + (p.completed ? '<button type="button" class="btn" data-lesson="' + p.completed + '">Reread lesson ' + p.completed + '</button>' : '') +
+        '<button type="button" class="linkbtn" data-open="' + next + '" data-ahead="1">Go ahead anyway ›</button></div>';
     } else {
-      body = lessonCard(L, 'Start today\'s 30 minutes');
+      var x = X[next] || {};
+      var started = p.opened[next];
+      h += '<div class="kicker">Today · Lesson ' + next + ' · ' + esc((unitOf(next) || {}).title || '') + '</div>' +
+        '<h1>' + esc(L.title) + '</h1><p class="lede">' + esc(L.goal) + '</p>' + (x.intro ? '<p>' + esc(x.intro) + '</p>' : '') +
+        contentsList(L) +
+        '<div class="btnrow"><button type="button" class="btn solid" data-open="' + next + '">' + (started ? 'Continue reading' : 'Open lesson ' + next) + '</button><span class="note-line">About 30 minutes</span></div>';
     }
+    h += '</div>';
 
-    $view.innerHTML = togetherHTML() + body +
-      (p.completed ? '<button type="button" class="linkish center" data-tab="course">Look back at finished lessons ›</button>' : '');
-  }
-
-  /* ---------- review cards (spaced repetition) ---------- */
-  function dueCards() {
-    var p = P(), t = today();
-    return Object.keys(p.cards).filter(function (k) { return p.cards[k].due <= t && itemByKey(k); })
-      .sort(function (a, b) { return p.cards[a].due < p.cards[b].due ? -1 : 1; });
-  }
-  function gradeCard(key, good) {
-    var p = P(), t = today(), c = p.cards[key];
-    if (!c) return;
-    if (!good) { c.reps = 0; c.ivl = 0; c.due = t; return; }
-    c.ivl = c.reps === 0 ? 1 : c.reps === 1 ? 3 : Math.round(Math.max(c.ivl, 1) * 2.3);
-    c.reps++;
-    c.due = addDays(t, c.ivl);
-  }
-
-  /* ---------- practice questions ---------- */
-  function optionsFrom(pool, correct, field, count) {
-    var seen = {}, out = [correct];
-    seen[correct[field]] = 1;
-    shuffle(pool).forEach(function (it) {
-      if (out.length >= count) return;
-      if (!seen[it[field]]) { seen[it[field]] = 1; out.push(it); }
-    });
-    return shuffle(out);
-  }
-  function buildPractice(n) {
-    var cur = itemsOf(n), old = learnedItems().filter(function (x) { return x.lesson !== n; });
-    var pool = cur.concat(old);
-    var letters = pool.filter(isLetter), words = pool.filter(function (x) { return !isLetter(x); });
-    var qs = [], flip = false;
-    shuffle(cur).forEach(function (it) {
-      if (isLetter(it)) {
-        var o = optionsFrom(letters, it, 'say', 4);
-        if (o.length > 1) qs.push({ type: 'sound', item: it, opts: o });
-        return;
-      }
-      var opts = optionsFrom(words, it, flip ? 'el' : 'en', 4);
-      if (opts.length > 1) qs.push({ type: flip ? 'greek' : 'mean', item: it, opts: opts });
-      flip = !flip;
-    });
-    // Sentence building from this lesson's longer phrases and its dialogue.
-    var L = LESSONS[n];
-    function buildable(el) { var w = el.split(/\s+/).length; return el.indexOf('/') === -1 && el.indexOf('___') === -1 && w >= 3 && w <= 7; }
-    var sentences = cur.filter(function (x) { return !isLetter(x) && buildable(x.el); }).map(function (x) { return { el: x.el, en: x.en }; })
-      .concat(L.dialogue.lines.filter(function (l) { return buildable(l[1]); }).map(function (l) { return { el: l[1], en: l[2] }; }));
-    shuffle(sentences).slice(0, 2).forEach(function (s) { qs.push({ type: 'build', sentence: s, words: s.el.split(/\s+/) }); });
-    // A few items from earlier lessons.
-    shuffle(old.filter(function (x) { return !isLetter(x); })).slice(0, 3).forEach(function (it) {
-      var o = optionsFrom(words, it, 'en', 4);
-      if (o.length > 1) qs.push({ type: 'mean', item: it, opts: o, old: true });
-    });
-    return qs.slice(0, 14);
-  }
-
-  /* ---------- session ---------- */
-  // Runtime state for the open session: queues and positions inside a block. The block itself is saved.
-  var run = null;
-  function startSession(extra) {
-    var p = P();
-    if (extra) { run = { extra: true, rq: dueCards().slice(0, REVIEW_MAX), shown: false, reviewed: 0 }; go('session'); return; }
-    var next = p.completed + 1;
-    if (!LESSONS[next]) return;
-    if (!p.session || p.session.n !== next) p.session = { n: next, block: 0 };
-    run = { n: next };
-    enterBlock(p.session.block);
-    save();
-    go('session');
-  }
-  function enterBlock(b) {
-    var p = P();
-    p.session.block = b;
-    run.block = b;
-    if (b === 0) {
-      run.rq = dueCards().slice(0, REVIEW_MAX); run.shown = false; run.reviewed = 0;
-      if (!run.rq.length) { setBlocks(1); enterBlock(1); }
-    } else if (b === 1) {
-      run.items = itemsOf(run.n); run.step = 0;
-    } else if (b === 2) {
-      run.qs = buildPractice(run.n); run.qi = 0; run.answer = null; run.built = []; run.right = 0;
-    } else if (b === 3) {
-      run.swap = false;
+    var pool = [];
+    for (var k = 1; k <= Math.max(1, p.completed); k++) pool = pool.concat(itemsOf(k).filter(function (it) { return it.k !== 'letter'; }));
+    if (pool.length) {
+      var w = pool[dateIndex() % pool.length];
+      h += '<aside class="wod"><span class="label">Word of the day</span>' +
+        '<span class="w gr" lang="el">' + esc(w.el) + '</span> <button type="button" class="play" data-say="' + esc(w.el) + '" aria-label="Listen">' +
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>' +
+        '<br><span class="tel">' + esc(G.telugu(w.el)) + '</span> <span class="tr">' + esc(G.latin(w.el)) + '</span><br>' + esc(w.en) + (w.tm ? ' · <span class="te muted">' + esc(w.tm) + '</span>' : '') + '</aside>';
     }
+    return h;
   }
-  function nextBlock() {
-    setBlocks(run.block + 1);
-    if (run.block < 3) enterBlock(run.block + 1);
-    save(); refresh(); window.scrollTo(0, 0);
+
+  /* ---------- lesson ---------- */
+  var lessonN = 1, book = null;
+  function renderLesson() {
+    var p = P(), L = LESSONS[lessonN], finished = lessonN <= p.completed;
+    var ctx = { me: p.name, spouse: spouseName(), unit: (unitOf(lessonN) || {}).title, review: finished ? [] : reviewFor(lessonN), older: olderItems(lessonN), keys: S.keys !== false };
+    book = B.render(L, X[lessonN], ctx);
+    book.review = ctx.review;
+    var html = book.html;
+    if (finished) {
+      html = html.replace(/<div class="finish">[\s\S]*$/, '<div class="finish"><p style="margin:0">You finished this lesson' + (p.finishedOn[lessonN] ? ' on ' + esc(p.finishedOn[lessonN]) : '') + '.</p>' +
+        '<div class="btnrow">' + (lessonN > 1 ? '<button type="button" class="btn" data-lesson="' + (lessonN - 1) + '">‹ Lesson ' + (lessonN - 1) + '</button>' : '') +
+        (lessonN < p.completed ? '<button type="button" class="btn" data-lesson="' + (lessonN + 1) + '">Lesson ' + (lessonN + 1) + ' ›</button>' : '') + '</div></div>');
+    }
+    return html;
   }
   function finishLesson() {
-    var p = P(), n = run.n, t = today();
+    var p = P(), n = lessonN, t = today();
+    // Review: unticked items were remembered, ticked ones come back tomorrow.
+    (book.review || []).forEach(function (it) {
+      if (!it.key || !p.cards[it.key]) return;
+      var box = $page.querySelector('[data-missed="' + it.key + '"]');
+      gradeCard(it.key, !(box && box.checked));
+    });
     p.completed = Math.max(p.completed, n);
     p.finishedOn[n] = t;
     itemsOf(n).forEach(function (it) { if (!p.cards[it.key]) p.cards[it.key] = { reps: 0, ivl: 0, due: addDays(t, 1) }; });
-    p.session = null; p.aheadOk = 0;
-    setBlocks(BLOCKS.length);
-    markActive();
-    save();
-    run = { finished: n };
-    refresh(); window.scrollTo(0, 0);
+    delete p.scroll[n]; p.aheadOk = 0;
+    markActive(); save();
+    go('home');
+    toast('Lesson ' + n + ' finished. Μπράβο!');
   }
 
-  function stepper() {
-    return '<ol class="stepper">' + BLOCKS.map(function (b, i) {
-      var st = i < run.block ? 'done' : i === run.block ? 'now' : '';
-      return '<li class="' + st + '"><span></span>' + b.label + '</li>';
-    }).join('') + '</ol>';
-  }
-  function sessionTop(title) {
-    return '<div class="sessbar"><button type="button" class="close" data-close="1" aria-label="Close. Your place is saved.">✕</button>' +
-      '<span class="sesstitle">' + esc(title) + '</span></div>';
-  }
-
-  function renderSession() {
-    if (!run) { go('home'); return; }
-    if (run.finished) { renderFinished(); return; }
-    if (run.extra) { renderExtra(); return; }
-    var L = LESSONS[run.n];
-    var head = sessionTop('Lesson ' + L.n + ' · ' + L.title) + stepper();
-    var b = run.block, html;
-    if (b === 0) html = reviewHTML('Review', 'Say the answer aloud before you tap.');
-    else if (b === 1) html = newHTML(L);
-    else if (b === 2) html = practiceHTML();
-    else html = togetherBlockHTML(L);
-    $view.innerHTML = head + html;
-  }
-
-  function answerHTML(it) {
-    var pr = pron(it);
-    return '<div class="answer"><div class="tel">' + esc(pr.te) + '</div><div class="tr">' + esc(pr.tr) + '</div>' +
-      '<div class="en">' + esc(it.en) + '</div>' + (it.tm ? '<div class="te muted">' + esc(it.tm) + '</div>' : '') + '</div>';
-  }
-  function reviewHTML(title, hint) {
-    var it = itemByKey(run.rq[0]);
-    return '<section class="stage">' +
-      '<div class="count">' + title + ' · ' + (run.reviewed + 1) + ' of ' + (run.reviewed + run.rq.length) + '</div>' +
-      '<div class="face"><div class="gr xl" lang="el">' + esc(shown(it)) + '</div>' + speakBtn(it.el, it.en, true) + (run.shown ? answerHTML(it) : '') + '</div>' +
-      (run.shown
-        ? '<div class="two"><button type="button" class="btn again" data-card="0">Again</button><button type="button" class="btn primary" data-card="1">Got it</button></div>'
-        : '<button type="button" class="btn primary wide" data-show="1">Show answer</button>') +
-      '<p class="hint">' + esc(hint) + '</p></section>';
-  }
-
-  function newHTML(L) {
-    var items = run.items;
-    if (run.step < items.length) {
-      var it = items[run.step];
-      return '<section class="stage">' +
-        '<div class="count">New · ' + (run.step + 1) + ' of ' + items.length + '</div>' +
-        '<div class="face"><div class="gr xl" lang="el">' + esc(shown(it)) + '</div>' + speakBtn(it.el, it.en, true) + answerHTML(it) +
-          (it.note ? '<p class="note">' + esc(it.note) + '</p>' : '') + '</div>' +
-        '<div class="two">' + (run.step > 0 ? '<button type="button" class="btn" data-newstep="-1">Back</button>' : '<span></span>') +
-        '<button type="button" class="btn primary" data-newstep="1">Next</button></div>' +
-        '<p class="hint">Listen, then both say it aloud twice.</p></section>';
-    }
-    return '<section class="stage">' + grammarHTML(L.grammar) +
-      '<div class="two"><button type="button" class="btn" data-newstep="-1">Back</button><button type="button" class="btn primary" data-nextblock="1">Start practice</button></div></section>';
-  }
-  function grammarHTML(g) {
-    return '<article class="grammar"><div class="eyebrow">Grammar</div><h2>' + esc(g.title) + '</h2>' +
-      g.body.map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') +
-      (g.ex && g.ex.length ? '<ul class="examples">' + g.ex.map(function (e) {
-        return '<li><div><span class="gr" lang="el">' + esc(e.el) + '</span><span class="tel">' + esc(G.telugu(e.el)) + '</span><span class="muted small">' + esc(e.en) + '</span></div>' + speakBtn(e.el, e.en) + '</li>';
-      }).join('') + '</ul>' : '') +
-      (g.te ? '<p class="compare"><b>Telugu tip</b>' + esc(g.te) + '</p>' : '') +
-      '</article>';
-  }
-
-  function practiceHTML() {
-    var q = run.qs[run.qi];
-    if (!q) {
-      return '<section class="stage"><div class="face"><div class="gr xl" lang="el">Μπράβο!</div>' +
-        '<p>' + run.right + ' right on the first try.</p></div>' +
-        '<button type="button" class="btn primary wide" data-nextblock="1">Go to Together</button></section>';
-    }
-    var head = '<div class="count">Practice · ' + (run.qi + 1) + ' of ' + run.qs.length + (q.old ? ' · from an earlier lesson' : '') + '</div>';
-    var body;
-    if (q.type === 'build') {
-      if (!q.order) q.order = shuffle(q.words.map(function (w, i) { return i; }));
-      var used = run.built;
-      body = '<p class="ask">Build this sentence in Greek</p><p class="prompt">' + esc(q.sentence.en) + '</p>' +
-        '<div class="built" aria-live="polite">' + (used.length ? used.map(function (i) { return '<span class="tile placed" lang="el">' + esc(q.words[i]) + '</span>'; }).join('') : '<span class="muted small">Tap the words in order</span>') + '</div>' +
-        '<div class="tiles">' + q.order.map(function (i) {
-          var on = used.indexOf(i) !== -1;
-          return '<button type="button" class="tile" lang="el" data-tile="' + i + '"' + (on || run.answer ? ' disabled' : '') + '>' + esc(q.words[i]) + '</button>';
-        }).join('') + '</div>' +
-        (run.answer ? '' : '<div class="two"><button type="button" class="btn" data-clear="1">Clear</button><button type="button" class="btn primary" data-check="1"' + (used.length === q.words.length ? '' : ' disabled') + '>Check</button></div>');
-    } else {
-      var it = q.item, field = q.type === 'greek' ? 'el' : q.type === 'sound' ? 'say' : 'en';
-      var ask = q.type === 'sound' ? 'What sound does this make?' : q.type === 'greek' ? 'Which is the Greek for' : 'What does this mean?';
-      var prompt = q.type === 'greek' ? '<p class="prompt">' + esc(it.en) + '</p>'
-        : '<div class="promptgr"><span class="gr xl" lang="el">' + esc(shown(it)) + '</span>' + speakBtn(it.el, it.en) + '</div>';
-      body = '<p class="ask">' + ask + '</p>' + prompt + '<div class="options">' + q.opts.map(function (o) {
-        var cls = '';
-        if (run.answer) { if (o[field] === it[field]) cls = ' right'; else if (o[field] === run.answer) cls = ' wrong'; }
-        return '<button type="button" class="opt' + cls + '"' + (field === 'el' ? ' lang="el"' : '') + ' data-opt="' + esc(o[field]) + '"' + (run.answer ? ' disabled' : '') + '>' + esc(o[field]) + '</button>';
-      }).join('') + '</div>';
-    }
-    var fb = '';
-    if (run.answer) {
-      var ok = run.correct;
-      var el = q.type === 'build' ? q.sentence.el : q.item.el;
-      var tel = q.type === 'build' ? G.telugu(el) : pron(q.item).te;
-      fb = '<div class="feedback ' + (ok ? 'ok' : 'no') + '"><b>' + (ok ? 'Σωστά! Correct.' : 'Not quite.') + '</b>' +
-        '<div><span class="gr" lang="el">' + esc(q.type === 'build' ? el : shown(q.item)) + '</span> <span class="tel">' + esc(tel) + '</span></div>' +
-        '<div class="muted small">' + esc(q.type === 'build' ? q.sentence.en : q.item.en) + (ok ? '' : ' · You\'ll see this one again.') + '</div>' +
-        '<button type="button" class="btn primary wide" data-nextq="1">Continue</button></div>';
-    }
-    return '<section class="stage">' + head + body + fb + '</section>';
-  }
-  function answerPractice(value) {
-    var q = run.qs[run.qi], correct;
-    if (q.type === 'build') correct = run.built.map(function (i) { return q.words[i]; }).join(' ') === q.words.join(' ');
-    else correct = value === q.item[q.type === 'greek' ? 'el' : q.type === 'sound' ? 'say' : 'en'];
-    run.answer = value || 'built'; run.correct = correct;
-    if (correct && !q.again) run.right++;
-    if (!correct && !q.again) run.qs.push(Object.assign({}, q, { again: true, order: null }));
-    say(q.type === 'build' ? q.sentence.el : q.item.el);
-  }
-
-  function dialogueLines(lines, names, me) {
-    return lines.map(function (ln) {
-      var who = names ? names[ln[0]] : ln[0];
-      var cls = names ? (who === me ? 'mine' : 'theirs') : '';
-      return '<li class="' + cls + '"><span class="who">' + esc(who) + '</span>' +
-        '<div class="line"><span class="gr" lang="el">' + esc(ln[1].replace(/___/g, '(your name)')) + '</span>' +
-        '<span class="tel">' + esc(G.telugu(ln[1].replace(/___/g, '…'))) + '</span>' +
-        '<span class="muted small">' + esc(ln[2]) + '</span></div>' + speakBtn(ln[1], ln[2]) + '</li>';
-    }).join('');
-  }
-  function togetherBlockHTML(L) {
-    var me = P().name, other = partnerName();
-    var names = run.swap ? { A: other, B: me } : { A: me, B: other };
-    return '<section class="stage">' +
-      '<div class="eyebrow">Together · ' + esc(L.dialogue.title) + '</div>' +
-      '<p class="muted small">Sit together and read it aloud. Then swap roles and read it again.</p>' +
-      '<ol class="dialogue">' + dialogueLines(L.dialogue.lines, names, me) + '</ol>' +
-      '<button type="button" class="btn wide" data-swap="1">Swap roles</button>' +
-      (L.dialogue.tip ? '<p class="note">' + esc(L.dialogue.tip) + '</p>' : '') +
-      '<button type="button" class="btn primary wide" data-finish="1">We said it together ✓</button></section>';
-  }
-
-  function renderFinished() {
-    var n = run.finished, L = LESSONS[n], p = P(), m = partner();
-    var partnerLine = '';
-    if (S.couple && m) {
-      partnerLine = (m.day || 0) >= n ? '<p>' + esc(m.name) + ' has finished this lesson too.</p>'
-        : '<p class="muted">' + esc(m.name) + ' hasn\'t finished lesson ' + n + ' yet.</p>';
-    }
-    $view.innerHTML = '<section class="stage finish">' +
-      '<div class="eyebrow">Lesson ' + n + ' complete</div>' +
-      '<div class="gr xl" lang="el">Μπράβο!</div>' +
-      '<p><b>' + esc(L.title) + '</b> · ' + L.items.length + ' new cards for your reviews.</p>' +
-      '<div class="bigstat"><b>' + streak(p) + '</b><span>day streak</span></div>' + partnerLine +
-      '<button type="button" class="btn primary wide" data-home="1">Done for today</button>' +
-      '<button type="button" class="linkish center" data-note="' + n + '">Look over this lesson again ›</button></section>';
-  }
-
-  function renderExtra() {
-    if (!run.rq.length) {
-      markActive(); save();
-      $view.innerHTML = sessionTop('Extra review') + '<section class="stage finish"><div class="gr xl" lang="el">Μπράβο!</div>' +
-        '<p>' + run.reviewed + ' cards reviewed.</p><button type="button" class="btn primary wide" data-home="1">Back home</button></section>';
-      return;
-    }
-    $view.innerHTML = sessionTop('Extra review') + reviewHTML('Review', 'Cards come back just before you would forget them.');
-  }
-
-  /* ---------- lessons list and notebooks ---------- */
+  /* ---------- lessons list ---------- */
   function renderCourse() {
     var p = P(), next = p.completed + 1;
-    var html = '<div class="pagehead"><h1>Lessons</h1><p class="muted">' + p.completed + ' finished · Tap a finished lesson to look over it again.</p></div>';
+    var h = '<div class="kicker">The course</div><h1>Lessons</h1><p class="lede">' + p.completed + ' finished. Open any finished lesson to reread it or redo its exercises.</p>';
     C.phases.forEach(function (ph) {
-      var units = C.units.filter(function (u) { return u.phase === ph.n; });
-      html += '<section class="phase"><div class="eyebrow">Phase ' + ph.n + ' · ' + esc(ph.span) + '</div><h2>' + esc(ph.title) + '</h2><p class="muted small">' + esc(ph.goal) + '</p>';
-      units.forEach(function (u) {
-        if (u.soon) { html += '<div class="unit soon"><h3>' + esc(u.title) + ' <span class="muted small">' + u.from + '–' + u.to + ' · coming soon</span></h3></div>'; return; }
-        html += '<div class="unit"><h3>' + esc(u.title) + ' <span class="muted small">' + u.from + '–' + u.to + '</span></h3>';
-        html += '<ol class="lessons">';
+      h += '<section class="phase"><div class="kicker">Phase ' + ph.n + ' · ' + esc(ph.span) + '</div><h2>' + esc(ph.title) + '</h2><p class="muted" style="font-size:16px">' + esc(ph.goal) + '</p>';
+      C.units.filter(function (u) { return u.phase === ph.n; }).forEach(function (u) {
+        if (u.soon) { h += '<div class="unit soon"><h3>' + esc(u.title) + ' · ' + u.from + '–' + u.to + ' · coming soon</h3></div>'; return; }
+        h += '<div class="unit"><h3>' + esc(u.title) + ' · ' + u.from + '–' + u.to + '</h3><ol class="lessons">';
         for (var n = u.from; n <= u.to; n++) {
           var L = LESSONS[n]; if (!L) continue;
-          var state = n <= p.completed ? 'done' : n === next ? 'next' : 'locked';
-          var inner = '<span class="num">' + (state === 'done' ? '✓' : n) + '</span><span class="lt">' + esc(L.title) + '</span>' +
-            (state === 'next' ? '<span class="badge">Next</span>' : state === 'done' ? '<span class="chev">›</span>' : '');
-          html += '<li class="' + state + '">' + (state === 'done'
-            ? '<button type="button" data-note="' + n + '">' + inner + '</button>'
-            : state === 'next' ? '<button type="button" data-tab="home">' + inner + '</button>'
-            : '<div>' + inner + '</div>') + '</li>';
+          var st = n <= p.completed ? 'done' : n === next ? 'next' : 'locked';
+          var inner = '<span class="num">' + (st === 'done' ? '✓ ' : '') + n + '</span><span class="lt">' + esc(L.title) + '</span>' + (st === 'next' ? '<span class="tag">Today</span>' : '');
+          h += '<li class="' + st + '">' + (st === 'done' ? '<button type="button" data-lesson="' + n + '">' + inner + '</button>' : st === 'next' ? '<button type="button" data-view="home">' + inner + '</button>' : '<div>' + inner + '</div>') + '</li>';
         }
-        html += '</ol></div>';
+        h += '</ol></div>';
       });
-      html += '</section>';
+      h += '</section>';
     });
-    $view.innerHTML = html;
-  }
-
-  var noteN = 1;
-  function renderNotebook() {
-    var L = LESSONS[noteN];
-    if (!L || noteN > P().completed) { go('course'); return; }
-    var items = itemsOf(noteN).map(function (it) {
-      var pr = pron(it);
-      return '<li><div class="it"><span class="gr" lang="el">' + esc(shown(it)) + '</span>' +
-        '<span class="pron"><span class="tel">' + esc(pr.te) + '</span> <span class="tr">' + esc(pr.tr) + '</span></span>' +
-        '<span>' + esc(it.en) + (it.tm ? ' · <span class="te muted">' + esc(it.tm) + '</span>' : '') + '</span>' +
-        (it.note ? '<span class="note">' + esc(it.note) + '</span>' : '') + '</div>' + speakBtn(it.el, it.en) + '</li>';
-    }).join('');
-    $view.innerHTML =
-      '<button type="button" class="linkish" data-tab="course">‹ All lessons</button>' +
-      '<div class="pagehead"><div class="eyebrow">' + esc(lessonLabel(noteN)) + '</div><h1>' + esc(L.title) + '</h1><p class="muted">' + esc(L.goal) + '</p></div>' +
-      '<section class="panel"><h2>Words and phrases</h2><ul class="notelist">' + items + '</ul></section>' +
-      '<section class="panel">' + grammarHTML(L.grammar) + '</section>' +
-      '<section class="panel"><h2>Dialogue · ' + esc(L.dialogue.title) + '</h2><ol class="dialogue">' + dialogueLines(L.dialogue.lines, null) + '</ol></section>' +
-      '<div class="two">' + (noteN > 1 ? '<button type="button" class="btn" data-note="' + (noteN - 1) + '">‹ Lesson ' + (noteN - 1) + '</button>' : '<span></span>') +
-      (noteN < P().completed ? '<button type="button" class="btn" data-note="' + (noteN + 1) + '">Lesson ' + (noteN + 1) + ' ›</button>' : '<span></span>') + '</div>';
+    return h;
   }
 
   /* ---------- settings ---------- */
   var resetArmed = false, leaveArmed = false;
   function renderSettings() {
     var a = S.profiles.a, b = S.profiles.b, p = P();
-    $view.innerHTML =
-      '<div class="pagehead row-between"><h1>Settings</h1><button type="button" class="btn" data-tab="home">Done</button></div>' +
-      '<section class="panel stack">' +
-        '<div class="setrow"><span>Appearance</span><div class="seg" role="group" aria-label="Appearance">' +
-          ['system', 'light', 'dark'].map(function (m) {
-            return '<button type="button" data-theme-pick="' + m + '" aria-pressed="' + ((S.theme || 'system') === m) + '">' + (m === 'system' ? 'Phone' : m === 'light' ? 'Light' : 'Dark') + '</button>';
-          }).join('') + '</div></div>' +
+    return '<div class="settings"><h1>Settings</h1>' +
+      '<section><h2>You</h2>' +
         '<div class="setrow"><span>This phone is for</span><div class="seg" role="group" aria-label="This phone is for">' +
           '<button type="button" data-who="a" aria-pressed="' + (S.who === 'a') + '">' + esc(a.name) + '</button>' +
           '<button type="button" data-who="b" aria-pressed="' + (S.who === 'b') + '">' + esc(b.name) + '</button></div></div>' +
-        '<div class="grid2">' +
-          '<div class="field"><label for="name-a">Name</label><input id="name-a" data-name="a" maxlength="24" value="' + esc(a.name) + '"></div>' +
-          '<div class="field"><label for="name-b">Spouse\'s name</label><input id="name-b" data-name="b" maxlength="24" value="' + esc(b.name) + '"></div>' +
-        '</div>' +
-      '</section>' +
-      coupleHTML() + installHelp() +
-      '<section class="panel stack"><h2>Progress</h2><p class="small muted" style="margin:0">' + esc(p.name) + ': ' + p.completed + ' lessons finished · ' + Object.keys(p.cards).length + ' cards · ' + streak(p) + '-day streak.</p>' +
-        '<button type="button" class="btn danger' + (resetArmed ? ' armed' : '') + '" data-reset="1">' + (resetArmed ? 'Tap again to erase ' + esc(p.name) + '\'s progress' : 'Start the course over') + '</button></section>';
+        '<div class="field"><label for="name-a">Name</label><input id="name-a" data-name="a" maxlength="24" value="' + esc(a.name) + '"></div>' +
+        '<div class="field"><label for="name-b">Spouse\'s name</label><input id="name-b" data-name="b" maxlength="24" value="' + esc(b.name) + '"></div></section>' +
+      '<section><h2>Reading</h2>' +
+        '<div class="setrow"><span>Appearance</span><div class="seg" role="group" aria-label="Appearance">' +
+          ['system', 'light', 'dark'].map(function (m) { return '<button type="button" data-theme-pick="' + m + '" aria-pressed="' + ((S.theme || 'system') === m) + '">' + (m === 'system' ? 'Phone' : m === 'light' ? 'Light' : 'Dark') + '</button>'; }).join('') + '</div></div>' +
+        '<div class="setrow"><span>Greek letters for exercises</span><div class="seg" role="group" aria-label="Greek letters">' +
+          '<button type="button" data-keys="1" aria-pressed="' + (S.keys !== false) + '">On-screen</button><button type="button" data-keys="0" aria-pressed="' + (S.keys === false) + '">Phone keyboard</button></div></div></section>' +
+      coupleHTML() +
+      '<section><h2>Home screen and sound</h2>' +
+        '<p><b>iPhone:</b> in Safari, tap Share, then <i>Add to Home Screen</i>. <b>Android:</b> in Chrome, tap ⋮, then <i>Add to Home screen</i> or <i>Install app</i>. Always open Mazí from the icon: on iPhone the icon and Safari keep separate progress.</p>' +
+        '<p><b>No sound?</b> iPhone: Settings › Accessibility › Spoken Content › Voices › Greek. Android: Settings › Text-to-speech › Speech Services by Google › Install voice data › Greek.</p>' +
+        '<p><b>Typing Greek with your own keyboard:</b> iPhone: Settings › General › Keyboard › Keyboards › Add New Keyboard › Greek. Android (Gboard): Settings › Languages › Add keyboard › Greek.</p></section>' +
+      '<section><h2>Progress</h2><p>' + esc(p.name) + ': ' + p.completed + ' lessons finished, ' + streak(p) + '-day streak.</p>' +
+        '<button type="button" class="btn danger' + (resetArmed ? ' armed' : '') + '" data-reset="1">' + (resetArmed ? 'Tap again to erase ' + esc(p.name) + '\'s progress' : 'Start the course over') + '</button></section></div>';
   }
   function coupleHTML() {
-    var head = '<h2>Together</h2>';
-    if (!window.MaziSync && remote.status === 'unavailable') {
-      return '<section class="panel stack">' + head + '<p class="small muted" style="margin:0">Sync works in the Mazí app from your GitHub link.</p></section>';
-    }
+    var h = '<section><h2>Together</h2>';
+    if (!window.MaziSync && remote.status === 'unavailable') return h + '<p>Sync works in the Mazí app from your GitHub link.</p></section>';
     if (S.couple) {
       var setup = /^auth\/|permission-denied|unauthorized/.test(remote.error || '');
       var st = remote.status === 'on' ? 'Connected' : remote.status === 'error' ? (setup ? 'Firebase setup needs attention' : 'Offline, will retry') : 'Connecting…';
-      return '<section class="panel stack">' + head +
-        '<p class="small" style="margin:0"><b>' + st + '.</b> Your couple code:</p>' +
-        '<div class="row"><code class="code" id="couple-code">' + esc(S.couple) + '</code><button type="button" class="btn" data-copy="1">Copy</button></div>' +
-        '<p class="small muted" style="margin:0">Your spouse enters this code on their phone. Keep it between the two of you.</p>' +
-        (remote.status === 'error' ? '<button type="button" class="btn" data-retry="1">Try again</button>' : '') +
-        (remote.error ? '<p class="small muted" style="margin:0">Details: ' + esc(remote.error) + '</p>' : '') +
-        '<button type="button" class="btn danger' + (leaveArmed ? ' armed' : '') + '" data-leave="1">' + (leaveArmed ? 'Tap again to disconnect' : 'Disconnect this phone') + '</button>' +
-      '</section>';
+      return h + '<p><b>' + st + '.</b> Your couple code:</p><p><span class="code" id="couple-code">' + esc(S.couple) + '</span> <button type="button" class="linkbtn" data-copy="1">Copy</button></p>' +
+        '<p class="small muted">Your spouse enters this code on their phone. Keep it between the two of you.</p>' +
+        (remote.status === 'error' ? '<p><button type="button" class="btn" data-retry="1">Try again</button></p>' : '') +
+        (remote.error ? '<p class="small muted">Details: ' + esc(remote.error) + '</p>' : '') +
+        '<button type="button" class="btn danger' + (leaveArmed ? ' armed' : '') + '" data-leave="1">' + (leaveArmed ? 'Tap again to disconnect' : 'Disconnect this phone') + '</button></section>';
     }
-    return '<section class="panel stack">' + head +
-      '<p class="small" style="margin:0">See each other\'s progress and take each lesson together. One of you creates a code; the other enters it.</p>' +
-      '<button type="button" class="btn primary" data-create="1">Create a couple code</button>' +
-      '<form class="stack" id="join-form">' +
-        '<div class="field"><label for="join-code">Or enter your spouse\'s code</label><input id="join-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX"></div>' +
-        '<button type="submit" class="btn">Join</button>' +
-      '</form></section>';
-  }
-  function installHelp() {
-    return '<section class="panel stack"><h2>Home screen and sound</h2><div class="stack small">' +
-      '<div><b>iPhone</b> · In Safari, tap Share, then <b>Add to Home Screen</b>.</div>' +
-      '<div><b>Android</b> · In Chrome, tap ⋮, then <b>Add to Home screen</b> or <b>Install app</b>.</div>' +
-      '<div class="muted">Always open Mazí from the icon. On iPhone, the icon and Safari keep separate progress.</div>' +
-      '<div class="muted"><b>No sound?</b> iPhone: Settings › Accessibility › Spoken Content › Voices › Greek. Android: Settings › Text-to-speech › Speech Services by Google › Install voice data › Greek.</div>' +
-      '</div></section>';
+    return h + '<p>See each other\'s progress and take each lesson together. One of you creates a code; the other enters it.</p>' +
+      '<p><button type="button" class="btn solid" data-create="1">Create a couple code</button></p>' +
+      '<form id="join-form"><div class="field"><label for="join-code">Or enter your spouse\'s code</label><input id="join-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX"></div>' +
+      '<button type="submit" class="btn">Join</button></form></section>';
   }
 
   /* ---------- first run ---------- */
   function renderWelcome() {
-    $view.innerHTML =
-      '<section class="hero"><div class="eyebrow" lang="el">Καλώς ήρθες · Welcome</div>' +
-        '<h1>Who is learning on this phone?</h1>' +
-        '<p class="muted">You each use Mazí on your own phone and take one lesson a day, together.</p></section>' +
-      '<form class="panel stack" id="welcome-form">' +
-        '<div class="field"><label for="w-me">Your name</label><input id="w-me" maxlength="24" required autocomplete="given-name"></div>' +
-        '<div class="field"><label for="w-partner">Your spouse\'s name</label><input id="w-partner" maxlength="24" placeholder="Optional"></div>' +
-        '<button type="submit" class="btn primary">Start</button>' +
-      '</form>';
+    return '<div class="kicker" lang="el">Καλώς ήρθες · Welcome</div><h1>Who is reading on this phone?</h1>' +
+      '<p class="lede">Mazí is a Greek course for the two of you: one chapter a day, read and practised together.</p>' +
+      '<form id="welcome-form"><div class="field"><label for="w-me">Your name</label><input id="w-me" maxlength="24" required autocomplete="given-name"></div>' +
+      '<div class="field"><label for="w-partner">Your spouse\'s name</label><input id="w-partner" maxlength="24" placeholder="Optional"></div>' +
+      '<button type="submit" class="btn solid">Start</button></form>';
   }
 
   /* ---------- routing ---------- */
-  var VIEWS = { home: renderHome, course: renderCourse, note: renderNotebook, session: renderSession, settings: renderSettings, welcome: renderWelcome };
-  var current = 'home';
-  function go(view, keepScroll) {
-    if (!VIEWS[view]) view = 'home';
-    if (!S.setup) view = 'welcome';
-    if (view === 'session' && !run) view = 'home';
-    current = view;
-    if (view !== 'settings') { resetArmed = false; leaveArmed = false; }
-    document.body.classList.toggle('in-session', view === 'session' || view === 'welcome');
-    document.querySelectorAll('#tabs button').forEach(function (b) {
-      var on = b.dataset.tab === view || (view === 'note' && b.dataset.tab === 'course');
-      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
-    });
-    renderHeader();
-    VIEWS[view]();
-    if (!keepScroll) window.scrollTo(0, 0);
-    var hash = view === 'note' ? 'course' : view === 'session' ? 'home' : view;
+  var view = 'home';
+  var VIEWS = { home: renderHome, course: renderCourse, lesson: renderLesson, settings: renderSettings, welcome: renderWelcome };
+  function go(v, keepScroll) {
+    saveScroll();
+    if (!VIEWS[v]) v = 'home';
+    if (!S.setup) v = 'welcome';
+    view = v;
+    if (v !== 'settings') { resetArmed = false; leaveArmed = false; }
+    $page.innerHTML = mast() + VIEWS[v]();
+    hideKeys();
+    syncInputMode();
+    if (!keepScroll) {
+      var y = v === 'lesson' ? (P().scroll[lessonN] || 0) : 0;
+      window.scrollTo(0, y);
+    }
+    var hash = v === 'lesson' ? 'lesson-' + lessonN : v;
     try { if (location.hash.slice(1) !== hash) history.replaceState(null, '', '#' + hash); } catch (e) { /* ignore */ }
   }
-  function refresh() { go(current, true); }
+  function refresh() { go(view, true); }
+  function openLesson(n) {
+    if (!LESSONS[n]) return;
+    lessonN = n;
+    var p = P();
+    if (n > p.completed && !p.opened[n]) { p.opened[n] = today(); save(); }
+    go('lesson');
+  }
+  var scrollT;
+  function saveScroll() {
+    if (view !== 'lesson' || !S.setup) return;
+    var p = P();
+    if (lessonN > p.completed) { p.scroll[lessonN] = Math.round(window.scrollY); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignore */ } }
+  }
+  window.addEventListener('scroll', function () { clearTimeout(scrollT); scrollT = setTimeout(saveScroll, 400); }, { passive: true });
 
+  /* ---------- on-screen Greek letters ---------- */
+  var keys = document.getElementById('keys'), activeInput = null;
+  var ROWS = [['ς', 'ε', 'ρ', 'τ', 'υ', 'θ', 'ι', 'ο', 'π'], ['α', 'σ', 'δ', 'φ', 'γ', 'η', 'ξ', 'κ', 'λ'], ['ζ', 'χ', 'ψ', 'ω', 'β', 'ν', 'μ']];
+  keys.innerHTML = ROWS.map(function (r) { return '<div class="kr">' + r.map(function (c) { return '<button type="button" data-key="' + c + '">' + c + '</button>'; }).join('') + '</div>'; }).join('') +
+    '<div class="kr"><button type="button" class="w" data-key="ACC">΄ accent</button><button type="button" class="w" data-key=" ">space</button><button type="button" class="w" data-key=";">;</button><button type="button" class="w" data-key="BK" aria-label="Delete">⌫</button><button type="button" class="w" data-key="DONE">Done</button></div>';
+  function useKeys() { var t = document.getElementById('use-keys'); return t ? t.checked : S.keys !== false; }
+  function syncInputMode() { document.querySelectorAll('[data-greek]').forEach(function (i) { i.setAttribute('inputmode', useKeys() ? 'none' : 'text'); }); }
+  function hideKeys() { keys.hidden = true; activeInput = null; }
+  document.addEventListener('focusin', function (e) {
+    if (e.target.dataset && e.target.dataset.greek && useKeys()) { activeInput = e.target; keys.hidden = false; }
+    else if (!keys.contains(e.target)) hideKeys();
+  });
+  keys.addEventListener('mousedown', function (e) { e.preventDefault(); });
+  keys.addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b || !activeInput) return;
+    var k = b.dataset.key, el = activeInput, v = el.value;
+    var s = el.selectionStart == null ? v.length : el.selectionStart, en = el.selectionEnd == null ? v.length : el.selectionEnd;
+    if (k === 'DONE') { el.blur(); hideKeys(); return; }
+    if (k === 'BK') { if (s === en && s > 0) s--; el.value = v.slice(0, s) + v.slice(en); el.setSelectionRange(s, s); return; }
+    if (k === 'ACC') {
+      var prev = v.charAt(s - 1);
+      if ('αεηιουω'.indexOf(prev) === -1) { toast('Tap the accent right after its vowel.'); return; }
+      el.value = v.slice(0, s - 1) + (prev + '́').normalize('NFC') + v.slice(en); el.setSelectionRange(s, s); return;
+    }
+    el.value = v.slice(0, s) + k + v.slice(en); el.setSelectionRange(s + 1, s + 1);
+  });
+
+  /* ---------- events ---------- */
+  var timerT = null, secs = 120;
   document.addEventListener('click', function (e) {
     var t = e.target.closest('button');
-    if (!t || t.disabled) return;
+    if (!t || t.disabled || keys.contains(t)) return;
     var d = t.dataset;
     if (d.say) { say(d.say); return; }
-    if (d.tab) { run = null; go(d.tab); return; }
-    if (d.go) { go(d.go); return; }
-    if (d.home || d.close) { run = null; go('home'); return; }
-    if (d.start) { startSession(false); return; }
-    if (d.extra) { startSession(true); return; }
-    if (d.ahead) { P().aheadOk = Number(d.ahead); save(); startSession(false); return; }
-    if (d.note) { noteN = Number(d.note); run = null; go('note'); return; }
+    if (d.view) { go(d.view); return; }
+    if (d.open) { if (d.ahead) { P().aheadOk = Number(d.open); save(); } openLesson(Number(d.open)); return; }
+    if (d.lesson) { openLesson(Number(d.lesson)); return; }
 
-    if (d.show) { run.shown = true; var it = itemByKey(run.rq[0]); if (it) say(it.el); refresh(); return; }
-    if (d.card) {
-      var key = run.rq.shift();
-      gradeCard(key, d.card === '1');
-      if (d.card === '0') run.rq.push(key); else run.reviewed++;
-      run.shown = false;
-      if (!run.extra && !run.rq.length) { nextBlock(); return; }
-      save(); refresh(); return;
+    if (d.revealReview) { $page.querySelectorAll('.rev').forEach(function (r) { r.hidden = false; }); t.hidden = true; return; }
+    if (d.choose) {
+      t.parentNode.querySelectorAll('.choice').forEach(function (c) { c.setAttribute('aria-pressed', String(c === t)); });
+      var blank = $page.querySelector('[data-blank="' + d.choose + '"]'); if (blank) blank.textContent = d.val;
+      return;
     }
-    if (d.newstep) {
-      run.step = Math.max(0, run.step + Number(d.newstep));
-      var ni = run.items[run.step];
-      if (ni) say(ni.el);
-      refresh(); window.scrollTo(0, 0); return;
+    if (d.checkSet) {
+      var set = book.sets.find(function (s) { return s.id === d.checkSet; });
+      var r = B.check(set, $page);
+      var sc = $page.querySelector('[data-score="' + set.id + '"]'); if (sc) sc.textContent = r.of ? r.right + ' of ' + r.of + ' right' : 'Compare with the examples.';
+      return;
     }
-    if (d.nextblock) { nextBlock(); return; }
-    if (d.opt) { answerPractice(d.opt); refresh(); return; }
-    if (d.tile) { run.built.push(Number(d.tile)); refresh(); return; }
-    if (d.clear) { run.built = []; refresh(); return; }
-    if (d.check) { answerPractice(null); refresh(); return; }
-    if (d.nextq) { run.qi++; run.answer = null; run.built = []; refresh(); window.scrollTo(0, 0); return; }
-    if (d.swap) { run.swap = !run.swap; refresh(); return; }
+    if (d.timer) {
+      var tel = document.getElementById('timer');
+      if (timerT) { clearInterval(timerT); timerT = null; t.textContent = 'Resume'; return; }
+      if (secs <= 0) secs = 120;
+      t.textContent = 'Pause';
+      timerT = setInterval(function () {
+        secs--; if (tel && document.body.contains(tel)) tel.textContent = Math.floor(secs / 60) + ':' + ('0' + secs % 60).slice(-2);
+        if (secs <= 0) { clearInterval(timerT); timerT = null; t.textContent = 'Again'; toast('Two minutes. Μπράβο!'); }
+      }, 1000);
+      return;
+    }
     if (d.finish) { finishLesson(); return; }
 
     if (d.themePick) { S.theme = d.themePick; save(); applyTheme(); refresh(); return; }
-    if (d.who) { S.who = d.who; run = null; save(); refresh(); return; }
+    if (d.keys) { S.keys = d.keys === '1'; save(); refresh(); return; }
+    if (d.who) { S.who = d.who; save(); refresh(); return; }
     if (d.create) {
       if (!window.MaziSync) { toast('Sync is not available here. Open Mazí from your GitHub link.'); return; }
       connectCouple(newCode()); return;
@@ -745,11 +508,10 @@
       if (!resetArmed) { resetArmed = true; refresh(); return; }
       resetArmed = false;
       var name = P().name;
-      S.profiles[S.who] = freshProfile(name); run = null; save();
+      S.profiles[S.who] = freshProfile(name); save();
       toast(name + '\'s course starts again from lesson 1.'); refresh(); return;
     }
   });
-
   function selectCode() {
     var el = document.getElementById('couple-code');
     if (!el) return;
@@ -757,7 +519,9 @@
     var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
     toast('Code selected. Copy it and send it to your spouse.');
   }
-
+  document.addEventListener('change', function (e) {
+    if (e.target.id === 'use-keys') { S.keys = e.target.checked; save(); syncInputMode(); if (!S.keys) hideKeys(); }
+  });
   document.addEventListener('submit', function (e) {
     e.preventDefault();
     if (e.target.id === 'welcome-form') {
@@ -772,24 +536,21 @@
       var code = cleanCode(document.getElementById('join-code').value);
       if (!code) { toast('That code doesn\'t look right. It has 16 letters and numbers.'); return; }
       if (!window.MaziSync) { toast('Sync is not available here. Open Mazí from your GitHub link.'); return; }
-      connectCouple(code); toast('Connected. You\'ll see each other on the home screen.');
+      connectCouple(code); toast('Connected. You\'ll see each other on the Today page.');
     }
   });
-
   document.addEventListener('input', function (e) {
     var d = e.target.dataset;
-    if (d.name) {
-      S.profiles[d.name].name = e.target.value.trim() || (d.name === 'a' ? 'Husband' : 'Wife');
-      save(); renderHeader();
-    }
+    if (d && d.name) { S.profiles[d.name].name = e.target.value.trim() || (d.name === 'a' ? 'Husband' : 'Wife'); save(); }
   });
-
   window.addEventListener('hashchange', function () {
-    var h = location.hash.slice(1);
-    if (h && h !== current && (h === 'home' || h === 'course' || h === 'settings')) { run = null; go(h); }
+    var h = location.hash.slice(1), m = h.match(/^lesson-(\d+)$/);
+    if (m && +m[1] !== lessonN) openLesson(+m[1]);
+    else if (VIEWS[h] && h !== view && h !== 'lesson') go(h);
   });
 
-  var startHash = (location.hash || '#home').slice(1);
-  go(startHash === 'course' || startHash === 'settings' ? startHash : 'home');
+  var h0 = location.hash.slice(1), m0 = h0.match(/^lesson-(\d+)$/);
+  if (m0 && LESSONS[+m0[1]] && +m0[1] <= P().completed + 1) openLesson(+m0[1]);
+  else go(h0 === 'course' || h0 === 'settings' ? h0 : 'home');
   setTimeout(function () { if (!window.MaziSync) window.MaziApp.setRemote({ status: 'unavailable' }); }, 8000);
 })();

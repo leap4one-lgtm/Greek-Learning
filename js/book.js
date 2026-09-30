@@ -98,7 +98,7 @@
     X = X || {};
     var sets = buildSets(L, X, ctx.older || []);
     var hasBible = !!X.bible;
-    var nums = { review: 0 }, n = 1, sec = {};
+    var n = 1, sec = {};
     ['reading', 'vocab', 'grammar'].concat(hasBible || X.know ? ['bible'] : []).concat(['exercises', 'together']).forEach(function (k) { sec[k] = L.n + '.' + (n++); });
     var toc = [
       ctx.review && ctx.review.length ? ['review', 'Review', '5 min'] : null,
@@ -109,7 +109,7 @@
 
     var h = '';
     h += '<header><div class="kicker">Lesson ' + L.n + ' · ' + esc(ctx.unit || '') + '</div><h1>' + esc(L.title) + '</h1>' +
-      '<p class="lede">' + esc(L.goal) + '</p>' +
+      '<p class="lede">' + esc(L.goal) + '</p>' + (X.intro ? '<p>' + esc(X.intro) + '</p>' : '') +
       '<nav class="contents" aria-label="In this lesson">' + toc.map(function (t) {
         return '<a href="#s-' + t[0] + '"><span>' + (t[0] === 'review' ? '·' : sec[t[0]]) + '</span>' + esc(t[1]) + (t[2] ? ' <span class="time">' + t[2] + '</span>' : '') + '</a>';
       }).join('') + '</nav></header>';
@@ -125,14 +125,32 @@
 
     // Reading
     var words = lessonWords(L);
-    h += '<section id="s-reading"><h2><span class="no">' + sec.reading + '</span>Reading</h2>' +
-      (X.setting ? '<p class="setting">' + esc(X.setting) + '</p>' : '') +
+    h += '<section id="s-reading"><h2><span class="no">' + sec.reading + '</span>Reading' + (X.reading ? ': ' + esc(X.reading.title) : '') + '</h2>';
+    if (X.reading) {
+      var R = X.reading;
+      if (R.drill) {
+        h += '<p>Read each line aloud, slowly, then tap it to hear it.</p><ol class="drill">' + R.lines.map(function (l) {
+          return '<li><button type="button" class="line" data-say="' + esc(l[0]) + '"><span class="g" lang="el">' + esc(l[0]) + '</span></button><span class="en">' + esc(l[1]) + '</span></li>';
+        }).join('') + '</ol>';
+      } else {
+        h += '<p class="muted" style="font-size:15px">Read the whole passage first. Tap any sentence to hear it. Try to understand it before you open the translation.</p>' +
+          '<p class="passage" lang="el">' + R.lines.map(function (l, i) {
+            return '<button type="button" class="sent" data-say="' + esc(l[0]) + '">' + highlight(l[0], words) + '</button>';
+          }).join(' ') + '</p>' +
+          (R.gloss && R.gloss.length ? '<p class="gloss-list"><span class="label">Help with this reading</span>' + R.gloss.map(function (gl) { return '<span><b lang="el">' + esc(gl[0]) + '</b> ' + esc(gl[1]) + '</span>'; }).join('') + '</p>' : '') +
+          '<details class="translation"><summary>Show the translation</summary><ol>' + R.lines.map(function (l) {
+            return '<li><span class="gr" lang="el">' + esc(l[0]) + '</span><br><span class="tel">' + esc(G.telugu(l[0])) + '</span><br><i>' + esc(l[1]) + '</i></li>';
+          }).join('') + '</ol></details>';
+      }
+      h += '<h3>Dialogue' + (L.dialogue.title ? ': ' + esc(L.dialogue.title) : '') + '</h3>';
+    }
+    h += (X.setting ? '<p class="setting">' + esc(X.setting) + '</p>' : '') +
       '<ol class="dialogue">' + L.dialogue.lines.map(function (l) {
         var who = l[0] === 'A' ? ctx.me : ctx.spouse;
         return '<li><span class="who">' + esc(who) + '</span><span class="g" lang="el">' + highlight(nameLine(l[1]), words) + '</span> ' + play(l[1], l[2]) +
           '<span class="tel">' + esc(G.telugu(l[1].replace(/___/g, '…'))) + '</span><span class="en">' + esc(l[2]) + '</span></li>';
       }).join('') + '</ol>' +
-      '<p class="muted" style="font-size:15px">Read it once silently, once aloud together. Highlighted words are new in this lesson.</p></section>';
+      '<p class="muted" style="font-size:15px">Highlighted words are new in this lesson.</p></section>';
 
     // Vocabulary
     h += '<section id="s-vocab"><h2><span class="no">' + sec.vocab + '</span>Vocabulary</h2>' +

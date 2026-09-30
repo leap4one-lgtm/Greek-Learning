@@ -4,13 +4,18 @@ A Greek course for a couple, built around one 30-minute session a day, taken tog
 
 ## How it works
 
-- **Today**: one lesson at a time. Tap Start and go through four blocks:
-  1. **Review** (5 min): spaced-repetition cards from earlier lessons.
-  2. **New** (10 min): 5–10 new words or phrases, then one grammar point with a Telugu tip.
-  3. **Practice** (10 min): choose the meaning, choose the Greek, build a sentence. Mistakes come back once.
-  4. **Together** (5 min): a short dialogue to read aloud to each other, then swap roles.
-- **Same lesson**: when two phones are connected, the next lesson opens once both of you have finished the previous one (with a "go ahead anyway" option).
-- **Lessons**: every finished lesson stays available as a notebook (words, grammar, dialogue, audio).
+Each lesson is a textbook chapter, read top to bottom on one page (about 30 minutes):
+
+- **Introduction** and contents.
+- **Review**: earlier words to say aloud together, then reveal and mark the ones you missed (spaced repetition).
+- **Reading**: in lessons 1–10, lines of letters and words to read aloud; from lesson 11, a short story about Νίκος and Ελένη using only words learned so far, with a glossary and a hidden translation. Tap any sentence to hear it. Then the lesson's dialogue.
+- **Vocabulary** table with pronunciation in Telugu script and English letters.
+- **Grammar** explained in prose, with pattern tables, examples and a Telugu comparison.
+- **From the Bible** and **Did you know?** notes.
+- **Exercises**: a worksheet in sets (choose the ending, translate, match, listen and write, correct the sentence, answer in your own words). Fill in a set, then check it. An on-screen Greek keyboard is included.
+- **Together**: role-play the dialogue, then three conversation prompts with a 2-minute timer.
+
+When two phones are connected, the next lesson opens once both of you have finished the previous one (with a "go ahead anyway" option). Finished lessons can be reread from **Lessons**, and the reading position is remembered.
 
 ## Course plan
 
@@ -22,7 +27,7 @@ A Greek course for a couple, built around one 30-minute session a day, taken tog
 | 3 Bible bridge | 181–270 | Koine forms and New Testament verses |
 | 4 Reading together | 271+ | The Gospel of John |
 
-Lessons 1–30 are written (`js/course.js`). Later units are listed as "coming soon" and get added in batches. `js/bible-verses.js` holds verses with word-by-word notes for Phase 3.
+Lessons 1–30 are written (`js/course.js`, including `extra` with readings, drills and notes). `js/book.js` lays a lesson out as a chapter. Later units are listed as "coming soon" and get added in batches. `js/bible-verses.js` holds verses with word-by-word notes for Phase 3.
 
 Pronunciation guides are generated from the Greek spelling by `js/translit.js` (Modern Greek pronunciation; in Telugu script a long vowel marks the stressed syllable).
 
