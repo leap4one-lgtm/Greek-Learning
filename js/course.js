@@ -799,3 +799,240 @@ window.MAZI_COURSE = {
     }
   ]
 };
+
+// Per-lesson extras for the lesson page and practice:
+// setting (scene line), turn (three "your turn" prompts for the couple), bible, know (did you know),
+// drills (fill the gap: "___" marks the gap, a = answer, o = options), spot (one wrong word), table (grammar pattern).
+window.MAZI_COURSE.extra = {
+  1: {
+    setting: 'Your first evening with Greek. Sit side by side.',
+    turn: ['Say Γεια σου to each other three ways: happy, sleepy, surprised.', 'Point at a vowel on the screen and let your spouse say its sound.', 'Say the sounds together slowly: α, ε, ι, ο.'],
+    know: 'Γεια comes from υγεία, "health". Every time you say Γεια σου, you wish someone good health.'
+  },
+  2: {
+    setting: 'Morning. The first words of the day.',
+    turn: ['Say Καλημέρα to each other tomorrow before anything else.', 'Read καλό and όνομα aloud, stressing the marked syllable.', 'Try writing your spouse\'s name with the Greek letters you know so far.'],
+    bible: { ref: 'Philippians 2:9', koine: 'τὸ ὄνομα τὸ ὑπὲρ πᾶν ὄνομα', en: 'the name that is above every name', note: 'ὄνομα, "name", is the word you learned today.' },
+    know: 'Greeks say Καλημέρα until about midday, and Καλησπέρα from the afternoon on.'
+  },
+  3: {
+    setting: 'Dinner. One of you passes the water.',
+    turn: ['At dinner, offer water, milk or bread in Greek, and answer with ευχαριστώ and παρακαλώ.', 'Say δρόμος three times, with your tongue touching your teeth for δ.', 'Say νερό, γάλα and δρόμος to each other and check the stress.'],
+    bible: { ref: 'John 4:10', koine: 'ἔδωκεν ἄν σοι ὕδωρ ζῶν', en: 'he would have given you living water', note: 'The Bible word for water is ὕδωρ (as in "hydro"). Today Greeks say νερό.' },
+    know: 'νερό comes from a Byzantine phrase for fresh water, νεαρόν ὕδωρ.'
+  },
+  4: {
+    setting: 'Breakfast table.',
+    turn: ['Offer each other three things at the table. Answer only ναι or όχι.', 'Say Θεός, ψωμί and ζωή to each other, then swap.', 'Say θ and δ one after the other until you can hear the difference.'],
+    bible: { ref: 'John 6:35', koine: 'ἐγώ εἰμι ὁ ἄρτος τῆς ζωῆς', en: 'I am the bread of life', note: 'ζωή (life) is today\'s word. The Bible\'s bread is ἄρτος; today Greeks say ψωμί.' },
+    know: 'Greeks often say "no" with a small upward nod and raised eyebrows. Don\'t mistake it for yes.'
+  },
+  5: {
+    setting: 'Bedtime.',
+    turn: ['Say Σ\' αγαπώ and answer Κι εγώ σ\' αγαπώ.', 'Ask Πότε; and answer Ποτέ!, with the stress in the right place.', 'Read three words from earlier lessons and clap on the stressed syllable.'],
+    bible: { ref: '1 John 4:19', koine: 'ἡμεῖς ἀγαπῶμεν, ὅτι αὐτὸς πρῶτος ἠγάπησεν ἡμᾶς', en: 'We love, because he first loved us.', note: 'ἀγαπῶμεν and ἠγάπησεν are forms of αγαπώ, the verb in Σ\' αγαπώ.' }
+  },
+  6: {
+    setting: 'Evening. One of you comes home.',
+    turn: ['Ask Τι κάνεις; every evening this week.', 'Find ου, ει, οι and αι in this lesson\'s words and read them aloud.', 'Answer Τι κάνεις; with Καλά, εσύ; and keep going.'],
+    bible: { ref: 'Matthew 6:9', koine: 'Πάτερ ἡμῶν ὁ ἐν τοῖς οὐρανοῖς', en: 'Our Father in heaven', note: 'οὐρανοῖς is today\'s word ουρανός, "heaven".' }
+  },
+  7: {
+    setting: 'You bump into each other in the kitchen.',
+    turn: ['Say Συγγνώμη and answer Δεν πειράζει.', 'End today with Τα λέμε αύριο!', 'Sort these into v and f: αύριο, αυτό, ευχαριστώ, Ευαγγέλιο.'],
+    bible: { ref: 'Mark 1:1', koine: 'Ἀρχὴ τοῦ εὐαγγελίου Ἰησοῦ Χριστοῦ', en: 'The beginning of the gospel of Jesus Christ', note: 'εὐαγγέλιον means "good news": εὖ (good) + ἄγγελος (messenger).' },
+    know: 'Ευαγγέλιο and άγγελος share a root: an angel is literally a messenger.'
+  },
+  8: {
+    setting: 'Tea time.',
+    turn: ['Make tea together and start with Πάμε!', 'Say μπαμπάς and μαμά, and tell each other one memory of your parents.', 'Read άγγελος slowly: ÁN-ge-los.'],
+    bible: { ref: 'Luke 2:10', koine: 'καὶ εἶπεν αὐτοῖς ὁ ἄγγελος· μὴ φοβεῖσθε', en: 'And the angel said to them, "Do not be afraid."', note: 'ὁ ἄγγελος, the angel of Christmas night.' },
+    know: 'Greeks drink τσάι, but far more καφές. Greek coffee is boiled in a small pot called a μπρίκι.'
+  },
+  9: {
+    setting: 'Reading signs.',
+    turn: ['Find three things at home whose English names come from Greek.', 'Say Δόξα τω Θεώ whenever something good happens today.', 'Read ΘΕΑΤΡΟ, ΜΟΥΣΙΚΗ and ΤΗΛΕΦΩΝΟ in capitals.'],
+    bible: { ref: 'Luke 2:14', koine: 'Δόξα ἐν ὑψίστοις θεῷ', en: 'Glory to God in the highest', note: 'The angels\' song. Δόξα τω Θεώ comes from phrases like this.' }
+  },
+  10: {
+    setting: 'Good night.',
+    turn: ['Read Ιησούς Χριστός and Ελλάδα aloud together.', 'Make Καληνύχτα, αγάπη μου your good-night words.', 'Read the verse below aloud together, slowly.'],
+    bible: { ref: 'John 1:1', koine: 'Ἐν ἀρχῇ ἦν ὁ λόγος', en: 'In the beginning was the Word', note: 'You can now read every letter in this verse.' }
+  },
+  11: {
+    setting: 'Pretend you are meeting for the first time.',
+    turn: ['Introduce yourselves with your real names: Με λένε…', 'Ask Πώς σε λένε; and answer.', 'Say Χαίρω πολύ and shake hands.'],
+    drills: [
+      { s: 'Εγώ ___ καλά.', a: 'είμαι', o: ['είμαι', 'είσαι'], en: 'I am fine.', why: 'With εγώ, the verb is είμαι.' },
+      { s: 'Εσύ ___ καλά;', a: 'είσαι', o: ['είμαι', 'είσαι'], en: 'Are you fine?', why: 'With εσύ, the verb is είσαι.' }
+    ],
+    spot: { w: ['Εσύ', 'είμαι', 'καλά;'], wrong: 1, fix: 'είσαι', en: 'Are you fine?', why: 'With εσύ, the verb is είσαι.' },
+    know: 'Χαίρω πολύ means "I rejoice a lot". It shares its root with χαρά, joy.'
+  },
+  12: {
+    setting: 'A friend visits. Introduce each other.',
+    turn: ['Introduce each other to an imaginary guest.', 'Point at people in a family photo: Αυτός είναι… / Αυτή είναι…', 'Say ο άντρας μου or η γυναίκα μου, whichever fits you.'],
+    drills: [
+      { s: '___ άντρας μου', a: 'ο', o: ['ο', 'η'], en: 'my husband', why: 'άντρας is masculine: ο.' },
+      { s: '___ γυναίκα μου', a: 'η', o: ['ο', 'η'], en: 'my wife', why: 'γυναίκα is feminine: η.' }
+    ],
+    spot: { w: ['Αυτός', 'είναι', 'η', 'γυναίκα', 'μου.'], wrong: 0, fix: 'Αυτή', en: 'This is my wife.', why: 'For a woman, "this" is αυτή.' },
+    bible: { ref: 'Ephesians 5:25', koine: 'Οἱ ἄνδρες, ἀγαπᾶτε τὰς γυναῖκας', en: 'Husbands, love your wives', note: 'ἄνδρες and γυναῖκας are the plurals of today\'s άντρας and γυναίκα.' }
+  },
+  13: {
+    setting: 'Sunday evening. One of you comes home from work.',
+    turn: ['Ask each other Πώς είσαι; and answer honestly, with your own ending.', 'Name one feeling from your day, then say why in English or Telugu.', 'Finish with Είμαι χαρούμενος / χαρούμενη γιατί είμαστε μαζί.'],
+    table: { tone: 'gender', cols: ['A man says', 'A woman says'], rows: [['χαρούμενος', 'χαρούμενη'], ['κουρασμένος', 'κουρασμένη'], ['λυπημένος', 'λυπημένη'], ['ήρεμος', 'ήρεμη']] },
+    drills: [
+      { s: 'Ο άντρας μου είναι χαρούμεν___.', a: 'ος', o: ['ος', 'η'], en: 'My husband is happy.', why: 'A man: -ος.' },
+      { s: 'Η γυναίκα μου είναι ήρεμ___.', a: 'η', o: ['ος', 'η'], en: 'My wife is calm.', why: 'A woman: -η.' }
+    ],
+    spot: { w: ['Η', 'γυναίκα', 'μου', 'είναι', 'κουρασμένος.'], wrong: 4, fix: 'κουρασμένη', en: 'My wife is tired.', why: 'She is a woman, so the ending is -η.' },
+    bible: { ref: 'Galatians 5:22', koine: 'ὁ δὲ καρπὸς τοῦ πνεύματός ἐστιν ἀγάπη, χαρά, εἰρήνη', en: 'But the fruit of the Spirit is love, joy, peace', note: 'χαρούμενος (joyful) comes from χαρά. λυπημένος comes from λύπη, the sorrow Jesus felt in Gethsemane (Matthew 26:38).' },
+    know: 'Greeks rarely answer "fine" automatically. Έτσι κι έτσι ("so-so") is a normal, honest answer.'
+  },
+  14: {
+    setting: 'Looking for things around the house.',
+    turn: ['Point at things and ask Τι είναι αυτό;', 'Hide something and ask Πού είναι…; Answer Εδώ! or Εκεί!', 'Ask each other one real Γιατί; question.'],
+    drills: [
+      { s: '___ είσαι; (Where are you?)', a: 'Πού', o: ['Πού', 'Πώς', 'Τι'], en: 'Where are you?', why: 'πού means where.' },
+      { s: '___ είσαι; (How are you?)', a: 'Πώς', o: ['Πού', 'Πώς', 'Τι'], en: 'How are you?', why: 'πώς means how.' }
+    ],
+    bible: { ref: 'John 1:38', koine: 'Ῥαββί… ποῦ μένεις;', en: 'Rabbi… where are you staying?', note: 'ποῦ is today\'s πού. The first question the disciples asked Jesus.' }
+  },
+  15: {
+    setting: 'Checking plans for the evening.',
+    turn: ['Ask each other three yes/no questions and answer with δεν.', 'Answer one question with ίσως and one with βέβαια.', 'Say Δεν ξέρω honestly about something.'],
+    drills: [
+      { s: '___ ξέρω.', a: 'Δεν', o: ['Δεν', 'Όχι'], en: 'I don\'t know.', why: 'δεν goes before a verb.' },
+      { s: 'Όχι, ___ είμαι κουρασμένη.', a: 'δεν', o: ['δεν', 'όχι'], en: 'No, I\'m not tired.', why: 'Όχι answers the question; δεν makes the verb negative.' }
+    ],
+    know: 'Greeks often use both together: Όχι, δεν ξέρω. "No, I don\'t know."'
+  },
+  16: {
+    setting: 'Sitting together on a quiet evening.',
+    turn: ['Hold hands and say Είμαστε μαζί.', 'Point at a family photo: Αυτοί είναι…', 'Greet an imagined elder politely: Πώς είστε;'],
+    table: { tone: 'plain', cols: ['Who', 'is / are'], rows: [['εγώ', 'είμαι'], ['εσύ', 'είσαι'], ['αυτός / αυτή', 'είναι'], ['εμείς', 'είμαστε'], ['εσείς', 'είστε'], ['αυτοί', 'είναι']] },
+    drills: [
+      { s: 'Εμείς ___ μαζί.', a: 'είμαστε', o: ['είμαστε', 'είστε', 'είναι'], en: 'We are together.', why: 'εμείς → είμαστε.' },
+      { s: 'Εσείς ___ καλά;', a: 'είστε', o: ['είμαστε', 'είστε', 'είναι'], en: 'Are you (all) well?', why: 'εσείς → είστε.' }
+    ],
+    bible: { ref: 'Matthew 18:20', koine: 'οὗ γάρ εἰσιν δύο ἢ τρεῖς συνηγμένοι εἰς τὸ ἐμὸν ὄνομα, ἐκεῖ εἰμι ἐν μέσῳ αὐτῶν', en: 'For where two or three are gathered in my name, there am I among them.', note: 'εἰσιν (they are) and εἰμι (I am) are the old forms of είναι and είμαι.' }
+  },
+  17: {
+    setting: 'Counting things on the table.',
+    turn: ['Count spoons, cups and fingers together, in Greek.', 'Ask Πόσα; about things in the room and answer.', 'Count backwards from πέντε to ένα.'],
+    bible: { ref: 'John 6:9', koine: 'πέντε ἄρτους κριθίνους καὶ δύο ὀψάρια', en: 'five barley loaves and two fish', note: 'πέντε and δύο are the numbers you just learned.' }
+  },
+  18: {
+    setting: 'Getting ready to leave the house.',
+    turn: ['Ask Τι ώρα είναι; three times today.', 'Say the time right now: Είναι…', 'Count from one to ten together, taking turns.'],
+    bible: { ref: 'Matthew 18:22', koine: 'ἕως ἑβδομηκοντάκις ἑπτά', en: 'seventy times seven', note: 'ἑπτά is επτά, the formal spelling of εφτά. Jesus on forgiveness.' }
+  },
+  19: {
+    setting: 'A message in the middle of the day.',
+    turn: ['Send one of today\'s phrases to each other on WhatsApp, in Greek.', 'Say Είσαι όμορφη / όμορφος with the right ending.', 'Tell each other Είμαι τυχερός / τυχερή.'],
+    drills: [
+      { s: 'Είσαι όμορφ___! (to her)', a: 'η', o: ['ος', 'η'], en: 'You are beautiful!', why: 'To a woman: -η.' },
+      { s: 'Είμαι τυχερ___. (a man)', a: 'ός', o: ['ός', 'ή'], en: 'I am lucky.', why: 'A man: -ός.' }
+    ],
+    bible: { ref: 'Song of Songs 4:1', koine: 'Ἰδοὺ εἶ καλή, ἡ πλησίον μου', en: 'Behold, you are beautiful, my love', note: 'From the Septuagint, the Greek Old Testament. εἶ is the old form of είσαι.' }
+  },
+  20: {
+    setting: 'Breakfast, all in Greek.',
+    turn: ['Do the breakfast dialogue at the real table tomorrow.', 'Ask Κοιμήθηκες καλά; every morning this week.', 'Add one thing of your own to the conversation.'],
+    know: 'You now know about 70 Greek words and phrases. That is enough for a real breakfast conversation.'
+  },
+  21: {
+    setting: 'Planning a coffee date.',
+    turn: ['Ask Έχεις χρόνο; and plan a real coffee date.', 'Say one thing you have: Έχω…', 'Say one thing you don\'t have: Δεν έχω…'],
+    table: { tone: 'plain', cols: ['Who', 'have'], rows: [['εγώ', 'έχω'], ['εσύ', 'έχεις'], ['αυτός / αυτή', 'έχει'], ['εμείς', 'έχουμε'], ['εσείς', 'έχετε'], ['αυτοί', 'έχουν']] },
+    drills: [
+      { s: 'Εγώ ___ χρόνο.', a: 'έχω', o: ['έχω', 'έχεις', 'έχει'], en: 'I have time.', why: 'εγώ → έχω.' },
+      { s: 'Εσύ ___ χρόνο;', a: 'έχεις', o: ['έχω', 'έχεις', 'έχει'], en: 'Do you have time?', why: 'εσύ → έχεις.' }
+    ],
+    bible: { ref: 'John 3:16', koine: 'ἀλλ᾽ ἔχῃ ζωὴν αἰώνιον', en: 'but have eternal life', note: 'ἔχῃ is a form of έχω, "I have".' }
+  },
+  22: {
+    setting: 'Walking around the house.',
+    turn: ['Walk around the house and name things with ο, η or το.', 'Ask Πού είναι…; about three things.', 'Guess the gender of a new word from its ending.'],
+    table: { tone: 'plain', cols: ['ο', 'η', 'το'], rows: [['ο καφές', 'η πόρτα', 'το νερό'], ['ο κήπος', 'η κουζίνα', 'το σπίτι'], ['-ος -ας -ης', '-α -η', '-ο -ι -μα']] },
+    drills: [
+      { s: '___ καφές', a: 'ο', o: ['ο', 'η', 'το'], en: 'the coffee', why: '-ς ending: masculine, ο.' },
+      { s: '___ πόρτα', a: 'η', o: ['ο', 'η', 'το'], en: 'the door', why: '-α ending: feminine, η.' },
+      { s: '___ νερό', a: 'το', o: ['ο', 'η', 'το'], en: 'the water', why: '-ο ending: neuter, το.' }
+    ],
+    know: 'Even things have a gender in Greek: coffee is masculine, the door feminine, water neuter.'
+  },
+  23: {
+    setting: 'Making drinks for each other.',
+    turn: ['Make each other a drink, asking only in Greek.', 'Say three things you want: Θέλω…', 'Say one thing you don\'t want: Δεν θέλω…'],
+    drills: [
+      { s: 'Θέλω καφ___, παρακαλώ.', a: 'έ', o: ['έ', 'ές'], en: 'I want coffee, please.', why: 'After θέλω, ο καφές drops its ς.' },
+      { s: '___ καφέ ή τσάι;', a: 'Θέλεις', o: ['Θέλω', 'Θέλεις'], en: 'Do you want coffee or tea?', why: 'Asking "you": θέλεις.' }
+    ],
+    spot: { w: ['Θέλω', 'καφές,', 'παρακαλώ.'], wrong: 1, fix: 'καφέ,', en: 'I want coffee, please.', why: 'After θέλω, ο καφές drops its ς: θέλω καφέ.' },
+    bible: { ref: 'John 4:7', koine: 'Δός μοι πεῖν', en: 'Give me a drink', note: 'Jesus to the Samaritan woman at the well.' }
+  },
+  24: {
+    setting: 'Deciding tomorrow\'s dinner.',
+    turn: ['Decide tomorrow\'s dinner in Greek.', 'Name everything on your plate tonight.', 'Say how many: δύο αυγά, τρία ψάρια.'],
+    drills: [
+      { s: 'δύο αυγ___', a: 'ά', o: ['ό', 'ά'], en: 'two eggs', why: 'το αυγό → τα αυγά.' },
+      { s: 'τρία ψάρι___', a: 'α', o: ['ες', 'α'], en: 'three fish', why: 'το ψάρι → τα ψάρια.' }
+    ],
+    bible: { ref: 'Luke 24:42', koine: 'οἱ δὲ ἐπέδωκαν αὐτῷ ἰχθύος ὀπτοῦ μέρος', en: 'They gave him a piece of broiled fish.', note: 'The Bible word for fish is ἰχθύς, the ΙΧΘΥΣ fish symbol of early Christians. Today Greeks say ψάρι.' }
+  },
+  25: {
+    setting: 'Dinner is ready.',
+    turn: ['Use these phrases at tonight\'s dinner.', 'Offer Κι άλλο; and answer honestly.', 'Say Πεινάω before dinner and Χόρτασα after.'],
+    drills: [
+      { s: 'Εσύ ___; (Are you hungry?)', a: 'πεινάς', o: ['πεινάω', 'πεινάς'], en: 'Are you hungry?', why: 'εσύ → πεινάς.' }
+    ],
+    bible: { ref: 'Matthew 5:6', koine: 'μακάριοι οἱ πεινῶντες καὶ διψῶντες τὴν δικαιοσύνην', en: 'Blessed are those who hunger and thirst for righteousness', note: 'πεινῶντες and διψῶντες come from πεινάω and διψάω.' },
+    know: 'Καλή όρεξη ("good appetite") is said at the start of every Greek meal.'
+  },
+  26: {
+    setting: 'Calling each other from different rooms.',
+    turn: ['Call each other from different rooms, in Greek only.', 'Say where you are right now: Είμαι στο… / στην…', 'Say Έλα εδώ! and see if your spouse comes.'],
+    drills: [
+      { s: 'Είμαι ___ κουζίνα.', a: 'στην', o: ['στο', 'στην'], en: 'I\'m in the kitchen.', why: 'η κουζίνα → στην κουζίνα.' },
+      { s: 'Είμαι ___ σαλόνι.', a: 'στο', o: ['στο', 'στην'], en: 'I\'m in the living room.', why: 'το σαλόνι → στο σαλόνι.' }
+    ],
+    spot: { w: ['Είμαι', 'στο', 'κουζίνα.'], wrong: 1, fix: 'στην', en: 'I\'m in the kitchen.', why: 'η κουζίνα is feminine, so στην.' }
+  },
+  27: {
+    setting: 'Looking for the keys, again.',
+    turn: ['Hide the keys and ask for them in Greek.', 'Name three things on the table.', 'Say the plurals: η καρέκλα → οι καρέκλες.'],
+    drills: [
+      { s: 'η καρέκλα → οι καρέκλ___', a: 'ες', o: ['ες', 'α'], en: 'the chairs', why: '-α → -ες.' },
+      { s: '___ κλειδιά', a: 'τα', o: ['τα', 'οι'], en: 'the keys', why: 'το κλειδί → τα κλειδιά.' }
+    ],
+    bible: { ref: 'Matthew 16:19', koine: 'δώσω σοι τὰς κλεῖδας τῆς βασιλείας τῶν οὐρανῶν', en: 'I will give you the keys of the kingdom of heaven', note: 'κλεῖδας (keys) is the old form of κλειδιά.' }
+  },
+  28: {
+    setting: 'The tea has gone cold.',
+    turn: ['Describe three things on the table: big, small, hot or cold.', 'Admire something: Ωραίο!', 'Say ο μεγάλος…, η μεγάλη…, το μεγάλο… with things in your home.'],
+    table: { tone: 'plain', cols: ['ο', 'η', 'το'], rows: [['μεγάλος', 'μεγάλη', 'μεγάλο'], ['μικρός', 'μικρή', 'μικρό'], ['ζεστός', 'ζεστή', 'ζεστό']] },
+    drills: [
+      { s: 'Το τσάι είναι κρύ___.', a: 'ο', o: ['ος', 'α', 'ο'], en: 'The tea is cold.', why: 'το τσάι is neuter: -ο.' },
+      { s: 'Η κουζίνα είναι μεγάλ___.', a: 'η', o: ['ος', 'η', 'ο'], en: 'The kitchen is big.', why: 'η κουζίνα is feminine: -η.' }
+    ],
+    bible: { ref: 'Revelation 21:5', koine: 'Ἰδοὺ καινὰ ποιῶ πάντα', en: 'Behold, I make all things new', note: 'καινά (new) is the root of today\'s καινούργιος.' }
+  },
+  29: {
+    setting: 'Cooking dinner together.',
+    turn: ['Cook one meal this week speaking only Greek.', 'Ask Να βοηθήσω; and actually help.', 'Say who does what: Εγώ μαγειρεύω, εσύ πλένεις.'],
+    table: { tone: 'plain', cols: ['Who', 'cook'], rows: [['εγώ', 'μαγειρεύω'], ['εσύ', 'μαγειρεύεις'], ['αυτός / αυτή', 'μαγειρεύει'], ['εμείς', 'μαγειρεύουμε'], ['εσείς', 'μαγειρεύετε'], ['αυτοί', 'μαγειρεύουν']] },
+    drills: [
+      { s: 'Εμείς μαγειρεύ___ μαζί.', a: 'ουμε', o: ['ουμε', 'ετε', 'ουν'], en: 'We cook together.', why: 'εμείς → -ουμε.' },
+      { s: 'Τι μαγειρεύ___; (you)', a: 'εις', o: ['ω', 'εις', 'ει'], en: 'What are you cooking?', why: 'εσύ → -εις.' }
+    ],
+    bible: { ref: 'John 21:12', koine: 'Δεῦτε ἀριστήσατε', en: 'Come and have breakfast', note: 'The risen Jesus cooks fish for his friends on the shore.' }
+  },
+  30: {
+    setting: 'Evening at home, all in Greek.',
+    turn: ['Do the whole evening dialogue tonight when one of you comes home.', 'Pray before dinner, starting with Ας προσευχηθούμε.', 'Ask Πώς πήγε η μέρα σου; and answer with two sentences.'],
+    know: 'You have finished the first 30 lessons: about 200 Greek words and phrases.'
+  }
+};
