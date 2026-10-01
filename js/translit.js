@@ -30,7 +30,7 @@
       var ch = s[i];
       if (/[̀-ͯ]/.test(ch)) {
         if (!out.length) continue;
-        if (STRESS.test(ch)) out[out.length - 1].acc = true;
+        if (STRESS.test(ch)) { out[out.length - 1].acc = true; if (ch === '\u0300') out[out.length - 1].grave = true; }
         if (DIAER.test(ch)) out[out.length - 1].dia = true;
         continue;
       }
@@ -66,6 +66,14 @@
         CONS[a.b].forEach(function (c) { u.push({ c: c }); });
       }
     }
+    // One-syllable words: Bible texts put a grave accent on little words (τὸ, καὶ); it is not stressed.
+    // Also never mark stress on a one-syllable word in the English-letter guide.
+    var vowels = u.filter(function (x) { return x.v; });
+    if (vowels.length === 1) {
+      var graveOnly = L.some(function (l) { return l.grave; }) && !L.some(function (l) { return l.acc && !l.grave; });
+      vowels[0].s = graveOnly ? false : vowels[0].s;
+      vowels[0].mono = true;
+    }
     var stressed = u.some(function (x) { return x.v && x.s; });
     // γ before e / i sounds is a y sound.
     u.forEach(function (x, k) { var nx = u[k + 1]; if (x.c === 'gh' && nx && (nx.v === 'e' || nx.v === 'i')) x.c = 'y'; });
@@ -83,7 +91,7 @@
     var u = units(word), out = '';
     u.forEach(function (x) {
       if (x.c) out += LAT_CONS[x.c] || x.c;
-      else out += x.s ? LAT_STRESSED[x.v] : x.v;
+      else out += x.s && !x.mono ? LAT_STRESSED[x.v] : x.v;
     });
     if (word.charAt(0) !== word.charAt(0).toLowerCase()) out = out.charAt(0).toUpperCase() + out.slice(1);
     return out;

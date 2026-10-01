@@ -3547,6 +3547,7 @@ window.MAZI_COURSE = {
    "bible": {
     "ref": "Revelation 22:13",
     "koine": "ἐγὼ τὸ Ἄλφα καὶ τὸ Ὦ",
+    "pron": "ἐγὼ τὸ Ἄλφα καὶ τὸ Ωμέγα",
     "en": "I am the Alpha and the Omega",
     "note": "Alpha and omega are the first and last letters of this alphabet: the beginning and the end."
    },
@@ -3953,6 +3954,7 @@ window.MAZI_COURSE = {
    "bible": {
     "ref": "John 1:1, as in the oldest manuscripts",
     "koine": "ΕΝΑΡΧΗΗΝΟΛΟΓΟΣ",
+    "pron": "Ἐν ἀρχῇ ἦν ὁ λόγος",
     "en": "In the beginning was the Word",
     "note": "The earliest copies of the New Testament were written in capitals only, with no spaces and no accents. Small letters, spaces and accents came later: Ἐν ἀρχῇ ἦν ὁ λόγος."
    },
@@ -4001,43 +4003,43 @@ window.MAZI_COURSE = {
        "α",
        "a",
        "అ",
-       "αγάπη, love"
+       "αγάπη (aghápi), love"
       ],
       [
        "ε",
        "e",
        "ఎ",
-       "ελπίδα, hope"
+       "ελπίδα (elpídha), hope"
       ],
       [
        "ι",
        "i",
        "ఇ",
-       "ιδέα, idea"
+       "ιδέα (idhéa), idea"
       ],
       [
        "η",
        "i",
        "ఇ",
-       "ημέρα, day"
+       "ημέρα (iméra), day"
       ],
       [
        "υ",
        "i",
        "ఇ",
-       "ύμνος, hymn"
+       "ύμνος (ímnos), hymn"
       ],
       [
        "ο",
        "o",
        "ఒ",
-       "όνομα, name"
+       "όνομα (ónoma), name"
       ],
       [
        "ω",
        "o",
        "ఒ",
-       "ώρα, hour"
+       "ώρα (óra), hour"
       ]
      ]
     }
@@ -4781,37 +4783,37 @@ window.MAZI_COURSE = {
        "ου",
        "u",
        "ఉ",
-       "ουρανός, heaven"
+       "ουρανός (uranós), heaven"
       ],
       [
        "αι",
        "e",
        "ఎ",
-       "και, and"
+       "και (ke), and"
       ],
       [
        "ει",
        "i",
        "ఇ",
-       "είναι, is"
+       "είναι (íne), is"
       ],
       [
        "οι",
        "i",
        "ఇ",
-       "οικογένεια, family"
+       "οικογένεια (ikoyénia), family"
       ],
       [
        "αυ",
        "av / af",
        "అవ్ / అఫ్",
-       "αύριο · αυτό"
+       "αύριο (ávrio) · αυτό (aftó)"
       ],
       [
        "ευ",
        "ev / ef",
        "ఎవ్ / ఎఫ్",
-       "Ευαγγέλιο · ευχαριστώ"
+       "Ευαγγέλιο (Evangélio) · ευχαριστώ (efkharistó)"
       ]
      ]
     }
@@ -4924,37 +4926,37 @@ window.MAZI_COURSE = {
        "μπ",
        "b",
        "బ",
-       "μπαμπάς, dad"
+       "μπαμπάς (babás), dad"
       ],
       [
        "ντ",
        "d",
        "డ",
-       "ντομάτα, tomato"
+       "ντομάτα (domáta), tomato"
       ],
       [
        "γκ",
        "g",
        "గ",
-       "γκαράζ, garage"
+       "γκαράζ (garáz), garage"
       ],
       [
        "γγ",
        "ng",
        "ంగ",
-       "άγγελος, angel"
+       "άγγελος (ángelos), angel"
       ],
       [
        "τσ",
        "ts",
        "త్స",
-       "τσάι, tea"
+       "τσάι (tsái), tea"
       ],
       [
        "τζ",
        "dz",
        "ద్జ",
-       "τζάμι, window pane"
+       "τζάμι (dzámi), window pane"
       ]
      ]
     }

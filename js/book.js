@@ -178,7 +178,7 @@
     });
     if (g.ex && g.ex.length) {
       h += '<h3>Examples</h3><ul class="ex">' + g.ex.map(function (e) {
-        return '<li><span class="gr" lang="el">' + esc(e.el) + '</span> ' + play(e.el, e.en) + '<br><span class="tel">' + esc(G.telugu(e.el)) + '</span> <span class="en">— ' + esc(e.en) + '</span></li>';
+        return '<li><span class="gr" lang="el">' + esc(e.el) + '</span> ' + play(e.el, e.en) + '<br><span class="tel">' + esc(G.telugu(e.el)) + '</span> <span class="tr">' + esc(G.latin(e.el)) + '</span><br><span class="en">' + esc(e.en) + '</span></li>';
       }).join('') + '</ul>';
     }
     if (g.te) h += '<aside class="aside"><span class="label">Telugu comparison</span>' + esc(g.te) + '</aside>';
@@ -189,7 +189,11 @@
       h += '<section id="s-bible"><h2><span class="no">' + sec.bible + '</span>' + (hasBible ? 'From the Bible' : 'Did you know?') + '</h2>';
       if (hasBible) {
         var b = X.bible;
-        h += '<blockquote><div class="k" lang="grc">' + esc(b.koine) + ' ' + play(b.koine, b.ref) + '</div><cite>' + esc(b.ref) + '</cite></blockquote>' +
+        var spoken = b.pron || b.koine;
+        h += '<blockquote><div class="k" lang="grc">' + esc(b.koine) + ' ' + play(spoken, b.ref) + '</div>' +
+          '<div class="tel">' + esc(G.telugu(spoken)) + '</div><div class="tr">' + esc(G.latin(spoken)) + '</div>' +
+          '<cite>' + esc(b.ref) + '</cite></blockquote>' +
+          (L.n <= 11 ? '<p class="muted" style="font-size:15px">You are not expected to read this yet. Follow the pronunciation underneath, or tap the speaker to hear it. By lesson 12 you will read it yourself.</p>' : '') +
           '<p><i>' + esc(b.en) + '</i></p><p>' + esc(b.note) + '</p>';
       }
       if (X.know) h += (hasBible ? '<aside class="aside"><span class="label">Did you know?</span>' + esc(X.know) + '</aside>' : '<p>' + esc(X.know) + '</p>');
