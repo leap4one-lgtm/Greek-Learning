@@ -80,7 +80,7 @@ h3 { font: 700 15px/1.4 var(--f-ui); margin: 26px 0 10px; }
 
 /* Grammar */
 .pattern { border-collapse: collapse; margin: 6px 0 18px; font-size: 18px; }
-.pattern th { font: 600 12px var(--f-ui); letter-spacing: .06em; text-transform: uppercase; padding: 0 22px 6px 0; text-align: left; color: var(--muted); border-bottom: 1px solid var(--rule); }
+.pattern th { font: 600 12px var(--f-ui); letter-spacing: .06em; text-transform: none; padding: 0 22px 6px 0; text-align: left; color: var(--muted); border-bottom: 1px solid var(--rule); }
 .pattern td { padding: 6px 22px 6px 0; border-bottom: 1px solid var(--rule); }
 .pattern.gender th:nth-child(1), .pattern.gender b.e1 { color: var(--him); }
 .pattern.gender th:nth-child(2), .pattern.gender b.e2 { color: var(--her); }
@@ -212,3 +212,6 @@ select.pick { border: 1px solid var(--rule); background: var(--field); border-ra
 .btn.danger { color: var(--bad); border-color: var(--bad); }
 .btn.danger.armed { background: var(--bad); color: var(--paper); }
 .small { font-size: 14px; }
+
+.tablewrap { overflow-x: auto; margin: 0 0 8px; }
+.pattern td:first-child { font-weight: 600; }

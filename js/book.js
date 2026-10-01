@@ -52,7 +52,7 @@
     var plain = words.filter(function (it) { return it.el.indexOf('/') === -1 && it.el.indexOf('…') === -1; });
 
     if (X.drills && X.drills.length) {
-      sets.push({ id: 'A', title: 'Choose the right word or ending', how: 'Tap the option that fits the gap.', qs: X.drills.map(function (d, i) {
+      sets.push({ id: 'A', title: 'Choose the right answer', how: 'Tap the option that fits the gap.', qs: X.drills.map(function (d, i) {
         return { id: 'A' + i, kind: 'choose', s: d.s, o: d.o, answers: [d.a], en: d.en, why: d.why };
       }) });
     }
@@ -90,7 +90,8 @@
         return { id: 'F' + i, kind: 'open', q: l, model: L.dialogue.lines[idx + 1] };
       }) });
     }
-    return sets;
+    var skip = X.skip || [];
+    return sets.filter(function (st) { return skip.indexOf(st.id) === -1; });
   }
 
   /* ---------- rendering ---------- */
@@ -163,18 +164,18 @@
     var g = L.grammar;
     h += '<section id="s-grammar"><h2><span class="no">' + sec.grammar + '</span>' + esc(g.title) + '</h2>' +
       g.body.map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('');
-    if (X.table) {
-      h += '<table class="pattern ' + (X.table.tone === 'gender' ? 'gender' : '') + '"><thead><tr>' + X.table.cols.map(function (c) { return '<th>' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>' +
-        X.table.rows.map(function (r) {
+    (X.tables || (X.table ? [X.table] : [])).forEach(function (tb) {
+      h += (tb.title ? '<h3>' + esc(tb.title) + '</h3>' : '') + '<div class="tablewrap"><table class="pattern ' + (tb.tone === 'gender' ? 'gender' : '') + '"><thead><tr>' + tb.cols.map(function (c) { return '<th>' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        tb.rows.map(function (r) {
           return '<tr>' + r.map(function (c, i) {
-            if (X.table.tone === 'gender') {
+            if (tb.tone === 'gender') {
               var m = c.match(/^(.*?)(ος|η|ός|ή)$/);
               if (m) return '<td lang="el">' + esc(m[1]) + '<b class="e' + (i + 1) + '">' + esc(m[2]) + '</b></td>';
             }
             return '<td lang="el">' + esc(c) + '</td>';
           }).join('') + '</tr>';
-        }).join('') + '</tbody></table>';
-    }
+        }).join('') + '</tbody></table></div>';
+    });
     if (g.ex && g.ex.length) {
       h += '<h3>Examples</h3><ul class="ex">' + g.ex.map(function (e) {
         return '<li><span class="gr" lang="el">' + esc(e.el) + '</span> ' + play(e.el, e.en) + '<br><span class="tel">' + esc(G.telugu(e.el)) + '</span> <span class="en">— ' + esc(e.en) + '</span></li>';

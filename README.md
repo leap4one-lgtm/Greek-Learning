@@ -8,7 +8,7 @@ Each lesson is a textbook chapter, read top to bottom on one page (about 30 minu
 
 - **Introduction** and contents.
 - **Review**: earlier words to say aloud together, then reveal and mark the ones you missed (spaced repetition).
-- **Reading**: in lessons 1–10, lines of letters and words to read aloud; from lesson 11, a short story about Νίκος and Ελένη using only words learned so far, with a glossary and a hidden translation. Tap any sentence to hear it. Then the lesson's dialogue.
+- **Reading**: in lessons 1–12, lines of letters, syllables and words to read aloud; from lesson 13, a short story about Νίκος and Ελένη using only words learned so far, with a glossary and a hidden translation. Tap any sentence to hear it. Then the lesson's dialogue.
 - **Vocabulary** table with pronunciation in Telugu script and English letters.
 - **Grammar** explained in prose, with pattern tables, examples and a Telugu comparison.
 - **From the Bible** and **Did you know?** notes.
@@ -21,13 +21,13 @@ When two phones are connected, the next lesson opens once both of you have finis
 
 | Phase | Lessons | Goal |
 |---|---|---|
-| 0 Letters & sounds | 1–10 | Read any Greek word aloud |
-| 1 Home Greek | 11–90 | Everyday talk at home |
-| 2 Your day | 91–180 | Past, future, telling your day |
-| 3 Bible bridge | 181–270 | Koine forms and New Testament verses |
-| 4 Reading together | 271+ | The Gospel of John |
+| 0 Reading Greek | 1–12 | The alphabet, vowels, consonants by mouth position, syllables, pairs, stress, reading |
+| 1 Home Greek | 13–94 | Greetings first, then everyday talk at home |
+| 2 Your day | 95–184 | Past, future, telling your day |
+| 3 Bible bridge | 185–274 | Koine forms and New Testament verses |
+| 4 Reading together | 275+ | The Gospel of John |
 
-Lessons 1–30 are written (`js/course.js`, including `extra` with readings, drills and notes). `js/book.js` lays a lesson out as a chapter. Later units are listed as "coming soon" and get added in batches. `js/bible-verses.js` holds verses with word-by-word notes for Phase 3.
+Lessons 1–34 are written (`js/course.js`, including `extra` with readings, drills and notes). `js/book.js` lays a lesson out as a chapter. Later units are listed as "coming soon" and get added in batches. `js/bible-verses.js` holds verses with word-by-word notes for Phase 3.
 
 Pronunciation guides are generated from the Greek spelling by `js/translit.js` (Modern Greek pronunciation; in Telugu script a long vowel marks the stressed syllable).
 

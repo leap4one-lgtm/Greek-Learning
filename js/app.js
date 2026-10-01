@@ -22,25 +22,19 @@
 
   /* ---------- state ---------- */
   function freshProfile(name) { return { name: name, completed: 0, finishedOn: {}, cards: {}, active: [], opened: {}, scroll: {}, aheadOk: 0 }; }
-  function freshState() { return { v: 3, who: 'a', theme: 'system', keys: true, setup: false, couple: null, profiles: { a: freshProfile('Husband'), b: freshProfile('Wife') } }; }
+  function freshState() { return { v: 4, who: 'a', theme: 'system', keys: true, setup: false, couple: null, profiles: { a: freshProfile('Husband'), b: freshProfile('Wife') } }; }
   function load() {
     try {
       var raw = localStorage.getItem(KEY);
       if (raw) {
         var s = JSON.parse(raw);
-        if (s && s.v === 3 && s.profiles) return s;
-        if (s && (s.v === 1 || s.v === 2) && s.profiles) {
-          // Earlier versions: keep names, theme, sync code and lesson progress where there was any.
+        if (s && s.v === 4 && s.profiles) return s;
+        if (s && s.profiles) {
+          // Earlier versions: the course was renumbered when the alphabet lessons were rebuilt,
+          // so keep names, settings and the couple code, and start the course again from lesson 1.
           var f = freshState();
-          f.who = s.who || 'a'; f.theme = s.theme || 'system'; f.setup = !!s.setup; f.couple = s.couple || null;
-          ['a', 'b'].forEach(function (k) {
-            var o = s.profiles[k] || {};
-            f.profiles[k].name = o.name || f.profiles[k].name;
-            if (s.v === 2) {
-              f.profiles[k].completed = o.completed || 0; f.profiles[k].finishedOn = o.finishedOn || {};
-              f.profiles[k].cards = o.cards || {}; f.profiles[k].active = o.active || [];
-            }
-          });
+          f.who = s.who || 'a'; f.theme = s.theme || 'system'; f.keys = s.keys !== false; f.setup = !!s.setup; f.couple = s.couple || null;
+          ['a', 'b'].forEach(function (k) { if (s.profiles[k] && s.profiles[k].name) f.profiles[k].name = s.profiles[k].name; });
           return f;
         }
       }
