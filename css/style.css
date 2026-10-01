@@ -215,3 +215,6 @@ select.pick { border: 1px solid var(--rule); background: var(--field); border-ra
 
 .tablewrap { overflow-x: auto; margin: 0 0 8px; }
 .pattern td:first-child { font-weight: 600; }
+
+.pause { margin: 40px 0 0; padding: 16px 18px; border: 1px dashed var(--accent); border-radius: 12px; background: var(--accent-soft); font-size: 16px; }
+.pause p { margin-bottom: 10px; }

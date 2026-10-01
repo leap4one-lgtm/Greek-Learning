@@ -100,12 +100,14 @@
     var sets = buildSets(L, X, ctx.older || []);
     var hasBible = !!X.bible;
     var n = 1, sec = {};
-    ['reading', 'vocab', 'grammar'].concat(hasBible || X.know ? ['bible'] : []).concat(['exercises', 'together']).forEach(function (k) { sec[k] = L.n + '.' + (n++); });
+    var prev = ctx.prevReading;
+    var hasReview = (ctx.review && ctx.review.length) || prev;
+    ['reading', 'vocab', 'grammar'].concat(hasBible || X.know ? ['bible'] : []).concat(['notebook', 'exercises', 'together']).forEach(function (k) { sec[k] = L.n + '.' + (n++); });
     var toc = [
-      ctx.review && ctx.review.length ? ['review', 'Review', '5 min'] : null,
-      ['reading', 'Reading', ''], ['vocab', 'Vocabulary', ''], ['grammar', 'Grammar', '10 min'],
+      hasReview ? ['review', 'Review and reread', ''] : null,
+      ['reading', 'Reading', ''], ['vocab', 'Vocabulary', ''], ['grammar', 'Grammar', ''],
       hasBible || X.know ? ['bible', hasBible ? 'From the Bible' : 'Did you know?', ''] : null,
-      ['exercises', 'Exercises', '10 min'], ['together', 'Together', '5 min']
+      ['notebook', 'Notebook', ''], ['exercises', 'Exercises', ''], ['together', 'Read aloud together', '']
     ].filter(Boolean);
 
     var h = '';
@@ -115,14 +117,26 @@
         return '<a href="#s-' + t[0] + '"><span>' + (t[0] === 'review' ? '·' : sec[t[0]]) + '</span>' + esc(t[1]) + (t[2] ? ' <span class="time">' + t[2] + '</span>' : '') + '</a>';
       }).join('') + '</nav></header>';
 
-    // Review
+    // Review: reread the last reading, then recall words
+    if (hasReview) {
+      h += '<section id="s-review"><h2><span class="no">Review</span>Before you begin</h2>';
+      if (prev) {
+        h += '<h3>Reread: ' + esc(prev.title) + ' (lesson ' + (L.n - 1) + ')</h3>' +
+          '<p class="muted" style="font-size:15px">Read it aloud once more. It should feel easier than yesterday.</p>' +
+          (prev.drill
+            ? '<ol class="drill">' + prev.lines.map(function (l) { return '<li><button type="button" class="line" data-say="' + esc(l[0]) + '"><span class="g" lang="el">' + esc(l[0]) + '</span></button><span class="en">' + esc(l[1]) + '</span></li>'; }).join('') + '</ol>'
+            : '<p class="passage" lang="el">' + prev.lines.map(function (l) { return '<button type="button" class="sent" data-say="' + esc(l[0]) + '">' + esc(l[0]) + '</button>'; }).join(' ') + '</p>' +
+              '<details class="translation"><summary>Show the translation</summary><ol>' + prev.lines.map(function (l) { return '<li><i>' + esc(l[1]) + '</i></li>'; }).join('') + '</ol></details>');
+      }
+    }
     if (ctx.review && ctx.review.length) {
-      h += '<section id="s-review"><h2><span class="no">Review</span>Before you begin</h2>' +
+      h += '<h3>Remember these</h3>' +
         '<p>Read each English word and say the Greek aloud, together. Then reveal the answers and mark the ones you missed.</p>' +
         '<ol class="ex" style="list-style:decimal;padding-left:24px">' + ctx.review.map(function (it, i) {
           return '<li><span>' + esc(isLetter(it) ? 'the letter ' + it.el : it.en) + '</span> <span class="rev" data-rev="' + i + '" hidden>→ <b class="gr">' + esc(shown(it)) + '</b> ' + play(it.el, it.en) + ' <label class="ui small muted"><input type="checkbox" data-missed="' + esc(it.key || '') + '"> missed</label></span></li>';
-        }).join('') + '</ol><button type="button" class="btn" data-reveal-review="1">Show the answers</button></section>';
+        }).join('') + '</ol><button type="button" class="btn" data-reveal-review="1">Show the answers</button>';
     }
+    if (hasReview) h += '</section>';
 
     // Reading
     var words = lessonWords(L);
@@ -200,6 +214,23 @@
       h += '</section>';
     }
 
+    // A place to stop for the day
+    h += '<div class="pause"><p><b>A good place to stop.</b> If this lesson feels long, stop here and continue tomorrow. Your place is saved and today still counts.</p>' +
+      '<button type="button" class="btn" data-pause="1">Stop here for today</button></div>';
+
+    // Notebook: writing by hand
+    var letterItems = L.items.filter(isLetter), wordItems = L.items.filter(function (it) { return !isLetter(it); });
+    var tasks = [];
+    if (letterItems.length) tasks.push('Copy each of today\'s letters, capital and small, five times, saying its name or sound aloud as you write: ' + letterItems.map(function (it) { return it.up + ' ' + it.el; }).join(', ') + '.');
+    if (wordItems.length) tasks.push('Copy each new word with its meaning. Then cover the Greek and write it again from the English, and check.');
+    if (X.tables && X.tables.length || X.table) tasks.push('Copy the table' + ((X.tables || []).length > 1 ? 's' : '') + ' from section ' + sec.grammar + ' into your notebook. Over time this becomes your own grammar book.');
+    if (X.reading && !X.reading.drill) tasks.push('Copy the first two sentences of the reading. Then close the app, write them again from memory, and check.');
+    else if (X.reading) tasks.push('Copy the reading lines from section ' + sec.reading + ' once, slowly and neatly.');
+    (X.write || []).forEach(function (t) { tasks.push(t); });
+    h += '<section id="s-notebook"><h2><span class="no">' + sec.notebook + '</span>Notebook</h2>' +
+      '<p>Writing by hand fixes letters and words in memory far better than tapping. Keep one notebook for Greek, and write today\'s page in it.</p>' +
+      '<ol class="prompts">' + tasks.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ol></section>';
+
     // Exercises
     h += '<section id="s-exercises"><h2><span class="no">' + sec.exercises + '</span>Exercises</h2>' +
       '<p>Do these together, one writing and the other helping, or each on your own phone. Check each set when you finish it.</p>' +
@@ -214,12 +245,15 @@
     });
     h += '</section>';
 
-    // Together
-    var mm = '2:00';
-    h += '<section id="s-together"><h2><span class="no">' + sec.together + '</span>Together</h2>' +
-      '<p>First read the dialogue from ' + sec.reading + ' aloud as a role-play: ' + esc(ctx.me) + ' reads A, ' + esc(ctx.spouse) + ' reads B. Then swap. Then put the phone down and talk:</p>' +
-      '<ol class="prompts">' + (X.turn || [L.dialogue.tip]).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ol>' +
-      '<p class="ui"><span class="timer" id="timer">' + mm + '</span><button type="button" class="btn" data-timer="1">Start 2 minutes</button></p>' +
+    // Read aloud together
+    var turns = (X.turn || [L.dialogue.tip]).filter(Boolean);
+    h += '<section id="s-together"><h2><span class="no">' + sec.together + '</span>Read aloud together</h2>' +
+      '<ol class="prompts">' +
+        (X.reading ? '<li>Read the reading from ' + sec.reading + ' aloud in turns, ' + (X.reading.drill ? 'one line each' : 'one sentence each') + '. ' + esc(ctx.me) + ' starts. Then read it again with ' + esc(ctx.spouse) + ' starting.</li>' : '') +
+        '<li>Read the dialogue as a role-play, each of you taking the lines with your name. Then swap.</li>' +
+        (turns[0] ? '<li>' + esc(turns[0]) + '</li>' : '') +
+      '</ol>' +
+      (turns.length > 1 ? '<details class="translation"><summary>More ideas for today</summary><ul>' + turns.slice(1).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></details>' : '') +
       '</section>';
 
     h += '<div class="finish"><p style="margin:0">When you have both read, practised and talked, mark the lesson as done.</p>' +

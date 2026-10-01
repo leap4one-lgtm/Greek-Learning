@@ -18,6 +18,7 @@
   function parseDay(s) { var p = s.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
   function addDays(s, n) { var d = parseDay(s); d.setDate(d.getDate() + n); return dayStr(d); }
   function today() { return dayStr(); }
+  function prettyDate(s) { var d = parseDay(s); return d.getDate() + ' ' + ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][d.getMonth()]; }
   function dateIndex() { return Math.floor(parseDay(today()).getTime() / DAY_MS); }
 
   /* ---------- state ---------- */
@@ -217,9 +218,9 @@
   }
   function contentsList(L) {
     var x = X[L.n] || {};
-    var parts = ['Review', 'Reading' + (x.reading ? ': ' + x.reading.title : ''), 'Vocabulary', L.grammar.title];
+    var parts = ['Review and reread', 'Reading' + (x.reading ? ': ' + x.reading.title : ''), 'Vocabulary', L.grammar.title];
     if (x.bible) parts.push('From the Bible: ' + x.bible.ref);
-    parts.push('Exercises', 'Together');
+    parts.push('Notebook', 'Exercises', 'Read aloud together');
     return '<p class="note-line">' + parts.map(esc).join(' · ') + '</p>';
   }
   function renderHome() {
@@ -254,10 +255,12 @@
     } else {
       var x = X[next] || {};
       var started = p.opened[next];
+      var since = started && started !== today() ? 'You started it on ' + prettyDate(started) + '. Take the time you need.' : '';
       h += '<div class="kicker">Today · Lesson ' + next + ' · ' + esc((unitOf(next) || {}).title || '') + '</div>' +
         '<h1>' + esc(L.title) + '</h1><p class="lede">' + esc(L.goal) + '</p>' + (x.intro ? '<p>' + esc(x.intro) + '</p>' : '') +
         contentsList(L) +
-        '<div class="btnrow"><button type="button" class="btn solid" data-open="' + next + '">' + (started ? 'Continue reading' : 'Open lesson ' + next) + '</button><span class="note-line">About 30 minutes</span></div>';
+        '<div class="btnrow"><button type="button" class="btn solid" data-open="' + next + '">' + (started ? 'Continue reading' : 'Open lesson ' + next) + '</button><span class="note-line">About 30 minutes, or two days if you need' + '</span></div>' +
+        (since ? '<p class="note-line">' + since + '</p>' : '');
     }
     h += '</div>';
 
@@ -277,12 +280,14 @@
   var lessonN = 1, book = null;
   function renderLesson() {
     var p = P(), L = LESSONS[lessonN], finished = lessonN <= p.completed;
-    var ctx = { me: p.name, spouse: spouseName(), unit: (unitOf(lessonN) || {}).title, review: finished ? [] : reviewFor(lessonN), older: olderItems(lessonN), keys: S.keys !== false };
+    var prevX = X[lessonN - 1];
+    var ctx = { me: p.name, spouse: spouseName(), unit: (unitOf(lessonN) || {}).title, review: finished ? [] : reviewFor(lessonN), older: olderItems(lessonN), keys: S.keys !== false,
+      prevReading: !finished && prevX && prevX.reading ? prevX.reading : null };
     book = B.render(L, X[lessonN], ctx);
     book.review = ctx.review;
     var html = book.html;
     if (finished) {
-      html = html.replace(/<div class="finish">[\s\S]*$/, '<div class="finish"><p style="margin:0">You finished this lesson' + (p.finishedOn[lessonN] ? ' on ' + esc(p.finishedOn[lessonN]) : '') + '.</p>' +
+      html = html.replace(/<div class="finish">[\s\S]*$/, '<div class="finish"><p style="margin:0">You finished this lesson' + (p.finishedOn[lessonN] ? ' on ' + prettyDate(p.finishedOn[lessonN]) : '') + '.</p>' +
         '<div class="btnrow">' + (lessonN > 1 ? '<button type="button" class="btn" data-lesson="' + (lessonN - 1) + '">‹ Lesson ' + (lessonN - 1) + '</button>' : '') +
         (lessonN < p.completed ? '<button type="button" class="btn" data-lesson="' + (lessonN + 1) + '">Lesson ' + (lessonN + 1) + ' ›</button>' : '') + '</div></div>');
     }
@@ -460,6 +465,7 @@
     if (d.checkSet) {
       var set = book.sets.find(function (s) { return s.id === d.checkSet; });
       var r = B.check(set, $page);
+      markActive(); save();
       var sc = $page.querySelector('[data-score="' + set.id + '"]'); if (sc) sc.textContent = r.of ? r.right + ' of ' + r.of + ' right' : 'Compare with the examples.';
       return;
     }
@@ -475,6 +481,12 @@
       return;
     }
     if (d.finish) { finishLesson(); return; }
+    if (d.pause) {
+      markActive(); saveScroll(); save();
+      go('home');
+      toast('Saved. Tomorrow you continue from where you stopped.');
+      return;
+    }
 
     if (d.themePick) { S.theme = d.themePick; save(); applyTheme(); refresh(); return; }
     if (d.keys) { S.keys = d.keys === '1'; save(); refresh(); return; }

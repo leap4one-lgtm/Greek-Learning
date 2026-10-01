@@ -7,13 +7,15 @@ A Greek course for a couple, built around one 30-minute session a day, taken tog
 Each lesson is a textbook chapter, read top to bottom on one page (about 30 minutes):
 
 - **Introduction** and contents.
-- **Review**: earlier words to say aloud together, then reveal and mark the ones you missed (spaced repetition).
+- **Review and reread**: reread the previous lesson's reading aloud, then recall earlier words and mark the ones you missed (spaced repetition).
 - **Reading**: in lessons 1–12, lines of letters, syllables and words to read aloud; from lesson 13, a short story about Νίκος and Ελένη using only words learned so far, with a glossary and a hidden translation. Tap any sentence to hear it. Then the lesson's dialogue.
 - **Vocabulary** table with pronunciation in Telugu script and English letters.
 - **Grammar** explained in prose, with pattern tables, examples and a Telugu comparison.
 - **From the Bible** and **Did you know?** notes.
 - **Exercises**: a worksheet in sets (choose the ending, translate, match, listen and write, correct the sentence, answer in your own words). Fill in a set, then check it. An on-screen Greek keyboard is included.
-- **Together**: role-play the dialogue, then three conversation prompts with a 2-minute timer.
+- **A place to stop**: lessons can stretch over two days; "Stop here for today" saves your place and keeps the streak.
+- **Notebook**: things to copy and write by hand.
+- **Read aloud together**: the reading in turns, the dialogue as a role-play, and one conversation prompt.
 
 When two phones are connected, the next lesson opens once both of you have finished the previous one (with a "go ahead anyway" option). Finished lessons can be reread from **Lessons**, and the reading position is remembered.
 
